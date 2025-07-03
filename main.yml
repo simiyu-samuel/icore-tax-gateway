@@ -1,0 +1,33 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.2' # Or your target PHP version
+        extensions: pdo_pgsql, json, mbstring, curl, dom, xml # Essential extensions
+        coverage: none
+    - name: Copy .env.example
+      run: cp .env.example .env
+    - name: Install Dependencies
+      run: composer install --no-interaction --prefer-dist --optimize-autoloader
+    - name: Generate App Key
+      run: php artisan key:generate --ansi
+    - name: Run Tests (placeholder)
+      run: php artisan test
+      env:
+        DB_CONNECTION: sqlite # Use in-memory SQLite for CI tests
+        DB_DATABASE: :memory:
+    # Add more steps like static analysis (PHPStan, PHP CS Fixer) here

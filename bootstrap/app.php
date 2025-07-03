@@ -15,7 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Apply ApiKeyAuthenticate to all API routes
         $middleware->api(prepend: [
             \App\Http\Middleware\ApiKeyAuthenticate::class,
-            // \App\Http\Middleware\AttachTraceId::class,
+            \App\Http\Middleware\AttachTraceId::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -17,7 +17,7 @@ return new class extends Migration
             $table->foreignUuid('kra_device_id')->nullable()->constrained('kra_devices');
             $table->foreignUuid('transaction_id')->nullable()->constrained('transactions'); // Link to transaction if related
             $table->string('command_type')->index(); // e.g., SEND_RECEIPTITEM, SEND_ITEM
-            $table->jsonb('data_payload'); // The JSON data needed to construct the KRA XML
+            $table->json('data_payload'); // The JSON data needed to construct the KRA XML
             $table->enum('status', ['PENDING', 'PROCESSING', 'SUCCESS', 'FAILED'])->default('PENDING');
             $table->integer('attempts')->default(0);
             $table->timestamp('last_attempted_at')->nullable();

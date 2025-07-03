@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('kra_scu_id')->unique(); // KRA's device ID (e.g., KRACU0100000001)
             $table->enum('device_type', ['OSCU', 'VSCU']);
             $table->enum('status', ['PENDING', 'ACTIVATED', 'UNAVAILABLE', 'ERROR'])->default('PENDING');
-            $table->jsonb('config')->nullable(); // JSONB for VSCU local URL, firmware version, etc.
+            $table->json('config')->nullable(); // JSON for VSCU local URL, firmware version, etc.
             $table->timestamp('last_status_check_at')->nullable();
             $table->timestamps();
         });

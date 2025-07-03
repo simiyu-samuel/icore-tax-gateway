@@ -25,8 +25,8 @@ return new class extends Migration
             $table->string('kra_digital_signature', 255);
             $table->string('kra_internal_data', 255);
             $table->string('kra_qr_code_url', 500);
-            $table->jsonb('request_payload'); // Original JSON from POS/ERP
-            $table->jsonb('response_payload')->nullable(); // Processed KRA response
+            $table->json('request_payload'); // Original JSON from POS/ERP
+            $table->json('response_payload')->nullable(); // Processed KRA response
             $table->text('raw_kra_request_xml')->nullable(); // For audit/debugging
             $table->text('raw_kra_response_xml')->nullable(); // For audit/debugging
             $table->enum('journal_status', ['PENDING', 'QUEUED', 'COMPLETED', 'FAILED'])->default('PENDING'); // Status of async journaling to KRA

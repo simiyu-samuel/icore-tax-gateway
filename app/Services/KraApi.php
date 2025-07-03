@@ -95,6 +95,7 @@ class KraApi
                 $e->response?->body(),
                 null, // No specific KRA error code from HTTP client error
                 $e->response?->status() ?? $e->getCode(),
+                $e->getCode(),
                 $e
             );
         } catch (KraApiException $e) {

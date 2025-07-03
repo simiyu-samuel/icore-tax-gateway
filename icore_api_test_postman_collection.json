@@ -1,0 +1,197 @@
+{
+	"info": {
+		"_postman_id": "YOUR_UNIQUE_COLLECTION_ID_HERE",
+		"name": "ICORE Tax Gateway - Phase 1",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_collection_link": "YOUR_COLLECTION_SHARE_LINK_HERE"
+	},
+	"item": [
+		{
+			"name": "Authentication Tests",
+			"item": [
+				{
+					"name": "1. Auth - No API Key (Expected: 401 Missing Key)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/test-auth",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"test-auth"
+							]
+						},
+						"description": "Tests the middleware without providing an X-API-Key header. Should result in 401 Unauthorized."
+					},
+					"response": []
+				},
+				{
+					"name": "2. Auth - Invalid API Key (Expected: 401 Invalid Key)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "this_is_an_obviously_invalid_key",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/test-auth",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"test-auth"
+							]
+						},
+						"description": "Tests the middleware with an API Key that does not exist in the database. Should result in 401 Unauthorized."
+					},
+					"response": []
+				},
+				{
+					"name": "3. Auth - Valid API Key (Expected: 200 OK)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/test-auth",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"test-auth"
+							]
+						},
+						"description": "Tests the middleware with a valid API Key from your environment. Should result in 200 OK and client details."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Authorization (PIN) Tests",
+			"item": [
+				{
+					"name": "1. Auth PIN - Allowed (Expected: 200 OK)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/test-auth-pin?taxpayer_pin={{taxpayerPinAllowed}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"test-auth-pin"
+							],
+							"query": [
+								{
+									"key": "taxpayer_pin",
+									"value": "{{taxpayerPinAllowed}}"
+								}
+							]
+						},
+						"description": "Tests authorization where the API Key is valid and allowed to access the specified taxpayer PIN. Should result in 200 OK."
+					},
+					"response": []
+				},
+				{
+					"name": "2. Auth PIN - Not Allowed (Expected: 403 Forbidden)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/test-auth-pin?taxpayer_pin={{taxpayerPinNotAllowed}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"test-auth-pin"
+							],
+							"query": [
+								{
+									"key": "taxpayer_pin",
+									"value": "{{taxpayerPinNotAllowed}}"
+								}
+							]
+						},
+						"description": "Tests authorization where the API Key is valid but NOT allowed to access the specified taxpayer PIN. Should result in 403 Forbidden."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Core API Endpoints (Placeholders)",
+			"item": [
+				{
+					"name": "1. Post Invoice (Placeholder) - Valid Key (Expected: 200 OK)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"gatewayDeviceId\": \"{{gatewayDeviceId}}\",\n    \"receiptType\": \"NORMAL\",\n    \"transactionType\": \"SALE\",\n    \"taxpayerPin\": \"{{taxpayerPinAllowed}}\",\n    \"buyerPin\": \"A000000000Z\",\n    \"internalReceiptNumber\": \"POS_INV_00123\",\n    \"saleLocationAddress\": \"123 Test Street, Nairobi\",\n    \"items\": [\n        {\n            \"description\": \"Test Item 1\",\n            \"quantity\": 1.0,\n            \"unitPrice\": 1000.00,\n            \"taxDesignationCode\": \"B\",\n            \"discountAmount\": 0.00\n        }\n    ],\n    \"paymentMethod\": \"CASH\",\n    \"totalAmount\": 1000.00,\n    \"taxAmounts\": {\n        \"taxB\": 160.00\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/invoices",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"invoices"
+							]
+						},
+						"description": "This is a placeholder for the actual Post Invoice endpoint. It uses environment variables. It should currently return 'Invoice endpoint hit!' if the API Key is valid."
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"protocolProfileBehavior": {}
+}

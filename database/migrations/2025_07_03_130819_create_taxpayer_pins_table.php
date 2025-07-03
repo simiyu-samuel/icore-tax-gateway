@@ -13,6 +13,10 @@ return new class extends Migration
     {
         Schema::create('taxpayer_pins', function (Blueprint $table) {
             $table->id();
+            $table->string('pin', 20)->unique(); // KRA PIN format e.g., P000000000Z
+            $table->string('name')->nullable(); // KRA company name
+            $table->string('address')->nullable();
+            $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
     }

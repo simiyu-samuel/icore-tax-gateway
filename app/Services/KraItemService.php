@@ -56,8 +56,8 @@ class KraItemService
             ($kraDevice->config['vscu_jar_url'] ?? config('kra.vscu_jar_base_url')) :
             config('kra.api_sandbox_base_url');
         $endpointPath = '/api/sendItem';
-        $originalBaseUrl = $this->kraApi->baseUrl;
-        $this->kraApi->baseUrl = $targetBaseUrl;
+        $originalBaseUrl = $this->kraApi->getBaseUrl();
+        $this->kraApi->setBaseUrl($targetBaseUrl);
 
         try {
             $response = $this->kraApi->sendCommand($endpointPath, $xmlPayload, false);
@@ -71,7 +71,7 @@ class KraItemService
         } catch (KraApiException $e) {
             throw $e;
         } finally {
-            $this->kraApi->baseUrl = $originalBaseUrl;
+            $this->kraApi->setBaseUrl($originalBaseUrl);
         }
     }
 
@@ -88,8 +88,8 @@ class KraItemService
             ($kraDevice->config['vscu_jar_url'] ?? config('kra.vscu_jar_base_url')) :
             config('kra.api_sandbox_base_url');
         $endpointPath = '/api/recvItem';
-        $originalBaseUrl = $this->kraApi->baseUrl;
-        $this->kraApi->baseUrl = $targetBaseUrl;
+        $originalBaseUrl = $this->kraApi->getBaseUrl();
+        $this->kraApi->setBaseUrl($targetBaseUrl);
         try {
             $response = $this->kraApi->sendCommand($endpointPath, $xmlPayload, false);
             $parsedXml = simplexml_load_string($response->body());
@@ -125,7 +125,7 @@ class KraItemService
         } catch (KraApiException $e) {
             throw $e;
         } finally {
-            $this->kraApi->baseUrl = $originalBaseUrl;
+            $this->kraApi->setBaseUrl($originalBaseUrl);
         }
     }
 } 

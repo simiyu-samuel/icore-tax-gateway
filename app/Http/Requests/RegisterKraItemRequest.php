@@ -28,7 +28,7 @@ class RegisterKraItemRequest extends FormRequest
         if (!$kraDevice) {
             return false;
         }
-        $this->merge(['_kra_device_model' => $kraDevice]);
+        $this->setAttribute('_kra_device_model', $kraDevice);
         return true;
     }
 

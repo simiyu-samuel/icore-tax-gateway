@@ -67,15 +67,12 @@ class KraApi
         $url = rtrim($this->baseUrl, '/') . '/' . ltrim($endpoint, '/');
         $timeoutMs = $isStrictTimeout ? $this->strictTimeoutMs : $this->generalTimeoutMs;
 
-        // --- CRITICAL: Flatten the XML to remove the dummy root and send KRA's expected structure ---
         $kraPayloadElements = '';
         foreach ($xmlPayload->children() as $child) {
             $kraPayloadElements .= $child->asXML();
         }
         $xmlString = $kraPayloadElements;
-        // --- END CRITICAL ---
 
-        // Log the outgoing request
         logger()->info("KRA_REQUEST: Sending command to {$url}", [
             'payload' => $xmlString,
             'timeout_ms' => $timeoutMs,
@@ -83,28 +80,27 @@ class KraApi
             'trace_id' => request()->attributes->get('traceId')
         ]);
 
+        $responseBody = null; // Always define this before try
+
         try {
             $response = Http::withHeaders([
                 'Content-Type' => 'application/xml',
                 'Accept' => 'application/xml',
             ])
-            ->timeout($timeoutMs / 1000) // Guzzle timeout is in seconds
+            ->timeout($timeoutMs / 1000)
             ->send('POST', $url, ['body' => $xmlString]);
 
             $responseBody = $response->body();
 
-            // Log the incoming response
             logger()->info("KRA_RESPONSE: Received response from {$url}", [
                 'status' => $response->status(),
                 'body' => $responseBody,
                 'trace_id' => request()->attributes->get('traceId')
             ]);
 
-            // Throws Guzzle exceptions for 4xx/5xx HTTP codes
             $response->throw();
 
-            // Attempt to parse XML response for KRA's internal status (P/E)
-            $parsedXml = @simplexml_load_string($responseBody); // Use @ to suppress XML errors, handle them below
+            $parsedXml = @simplexml_load_string($responseBody);
             if ($parsedXml === false) {
                 if (empty($responseBody)) {
                     throw new \Exception("KRA response body is empty or unparseable XML.");
@@ -140,7 +136,7 @@ class KraApi
             logger()->error("KRA_GENERAL_ERROR: " . $e->getMessage(), ['exception' => $e, 'trace_id' => request()->attributes->get('traceId')]);
             throw new KraApiException(
                 "An unexpected error occurred during KRA API communication: " . $e->getMessage(),
-                isset($responseBody) ? $responseBody : null,
+                $responseBody,
                 null,
                 0,
                 $e

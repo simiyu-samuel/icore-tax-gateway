@@ -131,6 +131,7 @@ class KraApi
                 $e->response ? $e->response->body() : null,
                 null,
                 $e->response ? $e->response->status() : 0,
+                0,
                 $e
             );
         } catch (KraApiException $e) {

@@ -136,7 +136,7 @@ class KraApi
             );
         } catch (KraApiException $e) {
             throw $e;
-        } catch (Throwable $e) {
+        } catch (\Throwable $e) {
             logger()->error("KRA_GENERAL_ERROR: " . $e->getMessage(), ['exception' => $e, 'trace_id' => request()->attributes->get('traceId')]);
             throw new KraApiException(
                 "An unexpected error occurred during KRA API communication: " . $e->getMessage(),

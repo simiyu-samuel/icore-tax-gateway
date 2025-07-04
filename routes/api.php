@@ -57,12 +57,9 @@ Route::post('/v1/invoices', function (Request $request) {
 Route::post('/kra/devices/activate', [KraDeviceController::class, 'activate']);
 Route::get('/kra/devices/status', [KraDeviceController::class, 'status']);
 
-Route::middleware('api')->group(function () {
+Route::prefix('v1')->middleware('api')->group(function () {
     // KRA Device Management
-    // Endpoint for initializing/activating a KRA device
     Route::post('/devices/initialize', [KraDeviceController::class, 'initialize']);
-    // Endpoint for getting the status of a specific KRA device
     Route::get('/devices/{gatewayDeviceId}/status', [KraDeviceController::class, 'getStatus']);
-
     // ... other routes will go here in later phases
 }); 

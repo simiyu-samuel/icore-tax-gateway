@@ -10,7 +10,7 @@ class RegisterKraItemRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        $apiClient = $this->request->attributes->get('api_client');
+        $apiClient = $this->attributes->get('api_client');
         if (!$apiClient || !$apiClient->is_active) {
             return false;
         }

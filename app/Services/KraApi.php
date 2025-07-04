@@ -139,6 +139,7 @@ class KraApi
                 $responseBody,
                 null,
                 0,
+                0,
                 $e
             );
         }

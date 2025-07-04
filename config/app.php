@@ -99,6 +99,9 @@ return [
 
     'key' => env('APP_KEY'),
 
+    // ICORE Tax Gateway specific configurations
+    'icore_api_key_header' => env('ICORE_API_KEY_HEADER', 'X-API-Key'),
+
     'previous_keys' => [
         ...array_filter(
             explode(',', env('APP_PREVIOUS_KEYS', ''))

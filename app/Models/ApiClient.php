@@ -45,4 +45,27 @@ class ApiClient extends Model
         // If allowed_taxpayer_pins is a comma-separated string
         return TaxpayerPin::whereIn('pin', explode(',', $this->allowed_taxpayer_pins));
     }
+
+    /**
+     * Check if this API client is allowed to access a specific taxpayer PIN.
+     *
+     * @param string|null $taxpayerPin
+     * @return bool
+     */
+    public function isAllowedTaxpayerPin(?string $taxpayerPin): bool
+    {
+        // If no PIN is provided, allow access (for endpoints that don't require PIN)
+        if (empty($taxpayerPin)) {
+            return true;
+        }
+
+        // If no allowed pins are set, deny access
+        if (empty($this->allowed_taxpayer_pins)) {
+            return false;
+        }
+
+        // Convert comma-separated string to array and check if PIN is in the list
+        $allowedPins = array_map('trim', explode(',', $this->allowed_taxpayer_pins));
+        return in_array($taxpayerPin, $allowedPins);
+    }
 }

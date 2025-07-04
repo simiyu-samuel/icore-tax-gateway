@@ -8,16 +8,20 @@ use App\Exceptions\KraApiException; // Import your custom exception
 class KraApi
 {
     protected string $baseUrl;
-    protected int $strictTimeoutMs = 1000; // KRA mandated 1000ms timeout for direct OSCU/VSCU calls
-    protected int $defaultTimeoutMs = 60000; // 60 seconds for general KRA API calls
+    protected int $strictTimeoutMs;
+    protected int $defaultTimeoutMs;
 
     public function __construct()
     {
         $env = config('app.env');
-        // Assuming KRA_API_SANDBOX_BASE_URL is defined in .env
+        // Use the new KRA API configuration
         $this->baseUrl = ($env === 'production') ?
-                        config('kra_api_production_base_url') :
-                        config('kra_api_sandbox_base_url');
+                        config('kra_api.production_base_url') :
+                        config('kra_api.sandbox_base_url');
+        
+        // Set timeout values from config
+        $this->strictTimeoutMs = config('kra_api.strict_timeout_ms', 1000);
+        $this->defaultTimeoutMs = config('kra_api.default_timeout_ms', 60000);
     }
 
     /**
@@ -50,7 +54,7 @@ class KraApi
                 'Accept' => 'application/xml',
             ])
             ->timeout($timeout / 1000) // Guzzle timeout is in seconds
-            ->retry(3, 100) // Retry 3 times, wait 100ms between retries for HTTP errors
+            ->retry(config('kra_api.max_retries', 3), config('kra_api.retry_delay_ms', 100)) // Retry with config values
             ->send('POST', $url, ['body' => $xmlString]);
 
             $responseBody = $response->body();

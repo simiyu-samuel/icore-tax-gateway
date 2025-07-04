@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Symfony\Component\HttpFoundation\Response;
+use App\Http\Controllers\KraDeviceController;
 
 // --- ICORE Tax Gateway API Test Routes (for Phase 1) ---
 
@@ -50,4 +51,8 @@ Route::get('/test-auth-pin', function (Request $request) {
 Route::post('/v1/invoices', function (Request $request) {
     // For now, just return a success message
     return response()->json(['message' => 'Invoice endpoint hit! This is a placeholder.', 'trace_id' => $request->attributes->get('traceId')], 200);
-}); 
+});
+
+// Device activation and status endpoints
+Route::post('/kra/devices/activate', [KraDeviceController::class, 'activate']);
+Route::get('/kra/devices/status', [KraDeviceController::class, 'status']); 

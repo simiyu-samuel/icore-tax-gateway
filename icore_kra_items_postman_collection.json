@@ -1,0 +1,94 @@
+{
+  "info": {
+    "name": "ICORE Tax Gateway - KRA Item Management",
+    "_postman_id": "b1e2c3d4-5678-1234-9abc-icore-kra-items",
+    "description": "Test KRA Item CRUD endpoints via the ICORE Tax Gateway",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Register/Update Item (SEND_ITEM)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-api-key",
+            "value": "{{api_key}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"gatewayDeviceId\": \"{{gatewayDeviceId}}\",\n  \"taxpayerPin\": \"{{taxpayerPin}}\",\n  \"itemCode\": \"ITEM001\",\n  \"itemClassificationCode\": \"CLS001\",\n  \"itemName\": \"Sample Item\",\n  \"itemTypeCode\": \"2\",\n  \"itemStandard\": \"Standard 1\",\n  \"originCountryCode\": \"KE\",\n  \"packagingUnitCode\": \"PCS\",\n  \"quantityUnitCode\": \"PCS\",\n  \"additionalInfo\": \"0001\",\n  \"initialWholesaleUnitPrice\": 100.0,\n  \"initialQuantity\": 50,\n  \"averageWholesaleUnitPrice\": 100.0,\n  \"defaultSellingUnitPrice\": 120.0,\n  \"taxType\": \"B\",\n  \"remark\": \"Test item registration\",\n  \"inUse\": true,\n  \"registerUserId\": \"testuser\",\n  \"registerDate\": \"20250704120000\",\n  \"updateUserId\": \"testuser\",\n  \"updateDate\": \"20250704120000\",\n  \"safetyQuantity\": 10,\n  \"useBarcode\": true,\n  \"changeAllowed\": true,\n  \"useAdditionalInfoAllowed\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/items",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "items"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Items (RECV_ITEM)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "x-api-key",
+            "value": "{{api_key}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/items?gatewayDeviceId={{gatewayDeviceId}}&taxpayerPin={{taxpayerPin}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "items"
+          ],
+          "query": [
+            {
+              "key": "gatewayDeviceId",
+              "value": "{{gatewayDeviceId}}"
+            },
+            {
+              "key": "taxpayerPin",
+              "value": "{{taxpayerPin}}"
+            }
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost"
+    },
+    {
+      "key": "api_key",
+      "value": "YOUR_API_KEY"
+    },
+    {
+      "key": "gatewayDeviceId",
+      "value": "YOUR_DEVICE_UUID"
+    },
+    {
+      "key": "taxpayerPin",
+      "value": "YOUR_TAXPAYER_PIN"
+    }
+  ]
+} 

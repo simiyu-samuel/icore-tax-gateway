@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Symfony\Component\HttpFoundation\Response;
 use App\Http\Controllers\KraDeviceController;
+use App\Http\Controllers\KraItemController;
 
 // --- ICORE Tax Gateway API Test Routes (for Phase 1) ---
 
@@ -62,4 +63,7 @@ Route::prefix('v1')->middleware('api')->group(function () {
     Route::post('/devices/initialize', [KraDeviceController::class, 'initialize']);
     Route::get('/devices/{gatewayDeviceId}/status', [KraDeviceController::class, 'getStatus']);
     // ... other routes will go here in later phases
+    // KRA Item Management
+    Route::post('/items', [KraItemController::class, 'registerItem']);
+    Route::get('/items', [KraItemController::class, 'getItems']);
 }); 

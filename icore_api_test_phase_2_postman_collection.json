@@ -1,0 +1,143 @@
+{
+	"info": {
+		"_postman_id": "YOUR_COLLECTION_ID_HERE",
+		"name": "ICORE Tax Gateway - Phase 2.1 Device Management",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_collection_link": "YOUR_COLLECTION_LINK_HERE"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://icore-tax-gateway.test",
+			"type": "string",
+			"description": "Base URL for the ICORE Tax Gateway API (your Laragon URL)"
+		},
+		{
+			"key": "apiKey",
+			"value": "YOUR_API_KEY_FROM_TINKER",
+			"type": "string",
+			"description": "API Key generated for your ApiClient in Tinker"
+		},
+		{
+			"key": "taxpayerPin",
+			"value": "P123456789Z",
+			"type": "string",
+			"description": "Test Taxpayer KRA PIN"
+		},
+		{
+			"key": "branchOfficeId",
+			"value": "00",
+			"type": "string",
+			"description": "Test Branch Office ID for KRA device initialization"
+		},
+		{
+			"key": "gatewayDeviceId",
+			"value": "AutomaticallySetAfterInitialize",
+			"type": "string",
+			"description": "This will be set by the 'Initialize KRA Device' request"
+		}
+	],
+	"item": [
+		{
+			"name": "Initialize KRA Device (POST)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"var jsonData = pm.response.json();",
+							"if (jsonData && jsonData.gatewayDeviceId) {",
+							"    pm.environment.set(\"gatewayDeviceId\", jsonData.gatewayDeviceId);",
+							"    console.log(\"gatewayDeviceId set to: \" + jsonData.gatewayDeviceId);",
+							"    pm.test(\"Initialization successful\", function () {",
+							"        pm.expect(pm.response.status).to.eql(200);",
+							"        pm.expect(jsonData.message).to.include(\"initialized successfully\");",
+							"        pm.expect(jsonData.gatewayDeviceId).to.be.a('string');",
+							"        pm.expect(jsonData.kraScuId).to.be.a('string');",
+							"    });",
+							"} else {",
+							"    console.log(\"gatewayDeviceId not found in response, or response is not JSON.\");",
+							"    pm.test(\"Initialization failed - no device ID in response\", function() {",
+							"        pm.expect(true).to.be.false; // Force test failure",
+							"    });",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-API-Key",
+						"value": "{{apiKey}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"taxpayerPin\": \"{{taxpayerPin}}\",\n    \"branchOfficeId\": \"{{branchOfficeId}}\",\n    \"deviceType\": \"VSCU\" // Change to OSCU if you want to test OSCU\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/devices/initialize",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"devices",
+						"initialize"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get KRA Device Status (GET)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Status retrieval successful\", function () {",
+							"    pm.expect(pm.response.status).to.eql(200);",
+							"    pm.expect(jsonData.message).to.include(\"status retrieved successfully\");",
+							"    pm.expect(jsonData.operationalStatus).to.be.oneOf([\"OPERATIONAL\", \"ERROR\"]);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "X-API-Key",
+						"value": "{{apiKey}}"
+					}
+				],
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/devices/{{gatewayDeviceId}}/status",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"devices",
+						"{{gatewayDeviceId}}",
+						"status"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

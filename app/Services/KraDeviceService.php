@@ -47,9 +47,9 @@ class KraDeviceService
         $endpointPath = '/selectInitOsdcInfo'; // This is the URL path KRA document suggests
 
         // Temporarily set the base URL for the KraApi instance if it's a VSCU to hit the local JAR
-        $originalBaseUrl = $this->kraApi->baseUrl;
+        $originalBaseUrl = $this->kraApi->getBaseUrl();
         if ($data['deviceType'] === 'VSCU') {
-            $this->kraApi->baseUrl = config('kra.vscu_jar_base_url');
+            $this->kraApi->setBaseUrl(config('kra.vscu_jar_base_url'));
         }
 
         try {
@@ -85,7 +85,7 @@ class KraDeviceService
             $kraDevice->config = array_merge($kraDevice->config ?? [], [ // Merge with existing config
                 'branch_office_id' => $data['branchOfficeId'],
                 'initial_activation_raw_response' => $response->body(), // Store raw response for audit
-                'vscu_jar_url_used' => ($data['deviceType'] === 'VSCU') ? $this->kraApi->baseUrl : null,
+                'vscu_jar_url_used' => ($data['deviceType'] === 'VSCU') ? $this->kraApi->getBaseUrl() : null,
             ]);
             $kraDevice->save();
 
@@ -111,7 +111,7 @@ class KraDeviceService
             throw $e;
         } finally {
             // Ensure baseUrl is restored even if an error occurs
-            $this->kraApi->baseUrl = $originalBaseUrl;
+            $this->kraApi->setBaseUrl($originalBaseUrl);
         }
     }
 
@@ -133,9 +133,9 @@ class KraDeviceService
         $endpointPath = ''; // Or a specific path if KRA defines one for STATUS (e.g. '/api/status')
 
         // Temporarily set the base URL for the KraApi instance if it's a VSCU to hit the local JAR
-        $originalBaseUrl = $this->kraApi->baseUrl;
+        $originalBaseUrl = $this->kraApi->getBaseUrl();
         if ($kraDevice->device_type === 'VSCU') {
-            $this->kraApi->baseUrl = $kraDevice->config['vscu_jar_url'] ?? config('kra.vscu_jar_base_url');
+            $this->kraApi->setBaseUrl($kraDevice->config['vscu_jar_url'] ?? config('kra.vscu_jar_base_url'));
         }
 
         try {
@@ -188,7 +188,7 @@ class KraDeviceService
             throw $e;
         } finally {
             // Ensure baseUrl is restored
-            $this->kraApi->baseUrl = $originalBaseUrl;
+            $this->kraApi->setBaseUrl($originalBaseUrl);
         }
     }
 

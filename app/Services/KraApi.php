@@ -146,4 +146,14 @@ class KraApi
             );
         }
     }
+
+    public function getBaseUrl(): string
+    {
+        return $this->baseUrl;
+    }
+
+    public function setBaseUrl(string $url): void
+    {
+        $this->baseUrl = $url;
+    }
 }

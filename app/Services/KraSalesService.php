@@ -43,8 +43,8 @@ class KraSalesService
                          ($kraDevice->config['vscu_jar_url'] ?? config('kra.vscu_jar_base_url')) :
                          config('kra.api_sandbox_base_url'); // For OSCU, this might be a specific endpoint just for SEND_RECEIPT
 
-        $originalBaseUrl = $this->kraApi->baseUrl;
-        $this->kraApi->baseUrl = $targetBaseUrl;
+        $originalBaseUrl = $this->kraApi->getBaseUrl();
+        $this->kraApi->setBaseUrl($targetBaseUrl);
 
         // Prepare the XML payload for CMD: SEND_RECEIPT
         // Data fields based on Doc 1, Section 21.7.1, Page 15.
@@ -158,7 +158,7 @@ class KraSalesService
             throw $e; // Re-throw to be caught by global error handler
         } finally {
             // Restore original base URL after the command execution
-            $this->kraApi->baseUrl = $originalBaseUrl;
+            $this->kraApi->setBaseUrl($originalBaseUrl);
         }
     }
 

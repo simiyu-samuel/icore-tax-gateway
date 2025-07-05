@@ -60,6 +60,21 @@ Route::post('/kra/devices/activate', [KraDeviceController::class, 'activate']);
 Route::get('/kra/devices/status', [KraDeviceController::class, 'status']);
 
 Route::prefix('v1')->middleware('api')->group(function () {
+    // Test route to verify routing
+    Route::get('/test', function () {
+        return response()->json(['message' => 'API routing is working!']);
+    });
+    
+    // Debug route to test POST
+    Route::post('/test-post', function () {
+        return response()->json(['message' => 'POST routing is working!']);
+    });
+    
+    // Debug route to test purchases path
+    Route::get('/purchases-test', function () {
+        return response()->json(['message' => 'Purchases path is working!']);
+    });
+    
     // KRA Device Management
     Route::post('/devices/initialize', [KraDeviceController::class, 'initialize']);
     Route::get('/devices/{gatewayDeviceId}/status', [KraDeviceController::class, 'getStatus']);

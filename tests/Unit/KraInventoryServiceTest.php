@@ -9,23 +9,43 @@ use App\Models\KraDevice;
 use App\Models\TaxpayerPin;
 use App\Exceptions\KraApiException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Config;
 use Mockery;
+use Illuminate\Http\Client\Response;
 
 class KraInventoryServiceTest extends TestCase
 {
     use RefreshDatabase;
 
-    private KraInventoryService $kraInventoryService;
-    private $mockKraApi;
+    private $kraApiMock;
+    private $kraInventoryService;
+    private $kraDevice;
+    private $taxpayerPin;
 
     protected function setUp(): void
     {
         parent::setUp();
         
-        $this->mockKraApi = Mockery::mock(KraApi::class);
-        $this->app->instance(KraApi::class, $this->mockKraApi);
+        // Enable simulation mode for testing
+        Config::set('kra.simulation_mode', true);
         
-        $this->kraInventoryService = new KraInventoryService($this->mockKraApi);
+        // Create real models with factories
+        $this->taxpayerPin = TaxpayerPin::factory()->create([
+            'pin' => 'A123456789B'
+        ]);
+
+        $this->kraDevice = KraDevice::factory()->for($this->taxpayerPin)->create([
+            'kra_scu_id' => 'KRACU0100000001',
+            'status' => 'ACTIVATED',
+            'device_type' => 'OSCU'
+        ]);
+
+        // Mock KraApi
+        $this->kraApiMock = Mockery::mock(KraApi::class);
+        // Default expectations to prevent Mockery exceptions
+        $this->kraApiMock->shouldReceive('getBaseUrl')->andReturn('http://test.com');
+        $this->kraApiMock->shouldReceive('setBaseUrl')->zeroOrMoreTimes()->andReturnNull();
+        $this->kraInventoryService = new KraInventoryService($this->kraApiMock);
     }
 
     protected function tearDown(): void
@@ -36,360 +56,371 @@ class KraInventoryServiceTest extends TestCase
 
     public function test_send_inventory_success()
     {
-        $taxpayerPin = TaxpayerPin::factory()->create([
-            'pin' => 'A123456789B'
-        ]);
+        // Mock successful KRA response
+        $mockResponse = new Response(
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], $this->getMockInventoryResponse())
+        );
 
-        $kraDevice = KraDevice::factory()->create([
-            'taxpayer_pin_id' => $taxpayerPin->id,
-            'kra_scu_id' => 'KRACU0100000001',
-            'status' => 'ACTIVATED'
-        ]);
+        $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
 
         $inventoryData = [
-            'kra_device_id' => $kraDevice->id,
+            'inventoryDate' => '2024-01-15',
             'items' => [
                 [
-                    'item_name' => 'Test Item 1',
-                    'quantity' => 10,
-                    'unit_price' => 100.00
+                    'itemCode' => 'PROD001',
+                    'itemName' => 'Test Product',
+                    'quantity' => 100,
+                    'unitPrice' => 50.00,
+                    'totalValue' => 5000.00
                 ],
                 [
-                    'item_name' => 'Test Item 2',
-                    'quantity' => 5,
-                    'unit_price' => 50.00
+                    'itemCode' => 'PROD002',
+                    'itemName' => 'Another Product',
+                    'quantity' => 50,
+                    'unitPrice' => 25.00,
+                    'totalValue' => 1250.00
                 ]
             ]
         ];
 
-        $mockKraResponse = [
-            'response_code' => '0',
-            'response_message' => 'Success'
-        ];
-
-        $this->mockKraApi->shouldReceive('sendInventory')
-            ->once()
-            ->with(Mockery::subset($inventoryData))
-            ->andReturn($mockKraResponse);
-
-        $result = $this->kraInventoryService->sendInventory($inventoryData);
+        $result = $this->kraInventoryService->sendInventory($this->kraDevice, $inventoryData);
 
         $this->assertIsArray($result);
-        $this->assertEquals('0', $result['response_code']);
-        $this->assertEquals('Success', $result['response_message']);
+        $this->assertEquals('SUCCESS', $result['status']);
+        $this->assertEquals('INV001', $result['inventoryId']);
+        $this->assertEquals('2024-01-15', $result['inventoryDate']);
     }
 
-    public function test_send_inventory_device_not_found()
+    public function test_send_inventory_with_tax_data()
+    {
+        // Mock successful KRA response
+        $mockResponse = new Response(
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], $this->getMockInventoryResponse())
+        );
+
+        $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
+
+        $inventoryData = [
+            'inventoryDate' => '2024-01-15',
+            'items' => [
+                [
+                    'itemCode' => 'PROD001',
+                    'itemName' => 'Taxable Product',
+                    'quantity' => 100,
+                    'unitPrice' => 50.00,
+                    'totalValue' => 5000.00,
+                    'taxRate' => 16.00,
+                    'taxAmount' => 800.00
+                ]
+            ]
+        ];
+
+        $result = $this->kraInventoryService->sendInventory($this->kraDevice, $inventoryData);
+
+        $this->assertIsArray($result);
+        $this->assertEquals('SUCCESS', $result['status']);
+        $this->assertEquals('INV001', $result['inventoryId']);
+    }
+
+    public function test_send_inventory_missing_required_fields()
     {
         $inventoryData = [
-            'kra_device_id' => 'non-existent-device',
+            'inventoryDate' => '2024-01-15'
+            // Missing items
+        ];
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Items are required');
+
+        $this->kraInventoryService->sendInventory($this->kraDevice, $inventoryData);
+    }
+
+    public function test_send_inventory_empty_items()
+    {
+        $inventoryData = [
+            'inventoryDate' => '2024-01-15',
             'items' => []
         ];
 
-        $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('KRA device not found');
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('At least one item is required');
 
-        $this->kraInventoryService->sendInventory($inventoryData);
-    }
-
-    public function test_send_inventory_device_not_activated()
-    {
-        $taxpayerPin = TaxpayerPin::factory()->create([
-            'pin' => 'A123456789B'
-        ]);
-
-        $kraDevice = KraDevice::factory()->create([
-            'taxpayer_pin_id' => $taxpayerPin->id,
-            'kra_scu_id' => 'KRACU0100000001',
-            'status' => 'PENDING' // Not activated
-        ]);
-
-        $inventoryData = [
-            'kra_device_id' => $kraDevice->id,
-            'items' => []
-        ];
-
-        $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('KRA device is not activated');
-
-        $this->kraInventoryService->sendInventory($inventoryData);
+        $this->kraInventoryService->sendInventory($this->kraDevice, $inventoryData);
     }
 
     public function test_send_inventory_kra_api_exception()
     {
-        $taxpayerPin = TaxpayerPin::factory()->create([
-            'pin' => 'A123456789B'
-        ]);
-
-        $kraDevice = KraDevice::factory()->create([
-            'taxpayer_pin_id' => $taxpayerPin->id,
-            'kra_scu_id' => 'KRACU0100000001',
-            'status' => 'ACTIVATED'
-        ]);
+        $this->kraApiMock->shouldReceive('sendCommand')->andThrow(new KraApiException('Inventory submission failed', 'INVENTORY_ERROR', 'Error response'));
 
         $inventoryData = [
-            'kra_device_id' => $kraDevice->id,
-            'items' => []
+            'inventoryDate' => '2024-01-15',
+            'items' => [
+                [
+                    'itemCode' => 'PROD001',
+                    'itemName' => 'Test Product',
+                    'quantity' => 100,
+                    'unitPrice' => 50.00,
+                    'totalValue' => 5000.00
+                ]
+            ]
         ];
-
-        $this->mockKraApi->shouldReceive('sendInventory')
-            ->once()
-            ->andThrow(new KraApiException('Inventory submission failed', 1006));
 
         $this->expectException(KraApiException::class);
         $this->expectExceptionMessage('Inventory submission failed');
 
-        $this->kraInventoryService->sendInventory($inventoryData);
+        $this->kraInventoryService->sendInventory($this->kraDevice, $inventoryData);
+    }
+
+    public function test_send_inventory_missing_data_node()
+    {
+        // Mock KRA response without DATA node
+        $mockResponse = new Response(
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], '<KRA><STATUS>ERROR</STATUS></KRA>')
+        );
+
+        $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
+
+        $inventoryData = [
+            'inventoryDate' => '2024-01-15',
+            'items' => [
+                [
+                    'itemCode' => 'PROD001',
+                    'itemName' => 'Test Product',
+                    'quantity' => 100,
+                    'unitPrice' => 50.00,
+                    'totalValue' => 5000.00
+                ]
+            ]
+        ];
+
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('Missing DATA node in KRA response');
+
+        $this->kraInventoryService->sendInventory($this->kraDevice, $inventoryData);
     }
 
     public function test_send_inventory_movement_success()
     {
-        $taxpayerPin = TaxpayerPin::factory()->create([
-            'pin' => 'A123456789B'
-        ]);
+        // Mock successful KRA response
+        $mockResponse = new Response(
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], $this->getMockMovementResponse())
+        );
 
-        $kraDevice = KraDevice::factory()->create([
-            'taxpayer_pin_id' => $taxpayerPin->id,
-            'kra_scu_id' => 'KRACU0100000001',
-            'status' => 'ACTIVATED'
-        ]);
+        $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
 
         $movementData = [
-            'kra_device_id' => $kraDevice->id,
-            'movement_type' => 'IN',
+            'movementDate' => '2024-01-15',
+            'movementType' => 'IN',
+            'referenceNumber' => 'REF001',
             'items' => [
                 [
-                    'item_name' => 'Test Item',
-                    'quantity' => 5,
-                    'unit_price' => 100.00
+                    'itemCode' => 'PROD001',
+                    'itemName' => 'Test Product',
+                    'quantity' => 50,
+                    'unitPrice' => 50.00,
+                    'totalValue' => 2500.00
                 ]
             ]
         ];
 
-        $mockKraResponse = [
-            'response_code' => '0',
-            'response_message' => 'Success'
-        ];
-
-        $this->mockKraApi->shouldReceive('sendInventoryMovement')
-            ->once()
-            ->with(Mockery::subset($movementData))
-            ->andReturn($mockKraResponse);
-
-        $result = $this->kraInventoryService->sendInventoryMovement($movementData);
+        $result = $this->kraInventoryService->sendInventoryMovement($this->kraDevice, $movementData);
 
         $this->assertIsArray($result);
-        $this->assertEquals('0', $result['response_code']);
-        $this->assertEquals('Success', $result['response_message']);
+        $this->assertEquals('SUCCESS', $result['status']);
+        $this->assertEquals('MOV001', $result['movementId']);
+        $this->assertEquals('IN', $result['movementType']);
     }
 
     public function test_send_inventory_movement_out()
     {
-        $taxpayerPin = TaxpayerPin::factory()->create([
-            'pin' => 'A123456789B'
-        ]);
+        // Mock successful KRA response
+        $mockResponse = new Response(
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], $this->getMockMovementResponse())
+        );
 
-        $kraDevice = KraDevice::factory()->create([
-            'taxpayer_pin_id' => $taxpayerPin->id,
-            'kra_scu_id' => 'KRACU0100000001',
-            'status' => 'ACTIVATED'
-        ]);
+        $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
 
         $movementData = [
-            'kra_device_id' => $kraDevice->id,
-            'movement_type' => 'OUT',
+            'movementDate' => '2024-01-15',
+            'movementType' => 'OUT',
+            'referenceNumber' => 'REF002',
             'items' => [
                 [
-                    'item_name' => 'Test Item',
-                    'quantity' => -3,
-                    'unit_price' => 100.00
+                    'itemCode' => 'PROD001',
+                    'itemName' => 'Test Product',
+                    'quantity' => -25,
+                    'unitPrice' => 50.00,
+                    'totalValue' => -1250.00
                 ]
             ]
         ];
 
-        $mockKraResponse = [
-            'response_code' => '0',
-            'response_message' => 'Success'
-        ];
-
-        $this->mockKraApi->shouldReceive('sendInventoryMovement')
-            ->once()
-            ->with(Mockery::subset($movementData))
-            ->andReturn($mockKraResponse);
-
-        $result = $this->kraInventoryService->sendInventoryMovement($movementData);
+        $result = $this->kraInventoryService->sendInventoryMovement($this->kraDevice, $movementData);
 
         $this->assertIsArray($result);
-        $this->assertEquals('0', $result['response_code']);
+        $this->assertEquals('SUCCESS', $result['status']);
+        $this->assertEquals('OUT', $result['movementType']);
+    }
+
+    public function test_send_inventory_movement_invalid_type()
+    {
+        $movementData = [
+            'movementDate' => '2024-01-15',
+            'movementType' => 'INVALID',
+            'referenceNumber' => 'REF001',
+            'items' => [
+                [
+                    'itemCode' => 'PROD001',
+                    'itemName' => 'Test Product',
+                    'quantity' => 50,
+                    'unitPrice' => 50.00,
+                    'totalValue' => 2500.00
+                ]
+            ]
+        ];
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid movement type: INVALID');
+
+        $this->kraInventoryService->sendInventoryMovement($this->kraDevice, $movementData);
+    }
+
+    public function test_send_inventory_movement_missing_required_fields()
+    {
+        $movementData = [
+            'movementDate' => '2024-01-15'
+            // Missing required fields
+        ];
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Movement type is required');
+
+        $this->kraInventoryService->sendInventoryMovement($this->kraDevice, $movementData);
     }
 
     public function test_send_inventory_movement_kra_api_exception()
     {
-        $taxpayerPin = TaxpayerPin::factory()->create([
-            'pin' => 'A123456789B'
-        ]);
-
-        $kraDevice = KraDevice::factory()->create([
-            'taxpayer_pin_id' => $taxpayerPin->id,
-            'kra_scu_id' => 'KRACU0100000001',
-            'status' => 'ACTIVATED'
-        ]);
+        $this->kraApiMock->shouldReceive('sendCommand')->andThrow(new KraApiException('Movement submission failed', 'MOVEMENT_ERROR', 'Error response'));
 
         $movementData = [
-            'kra_device_id' => $kraDevice->id,
-            'movement_type' => 'IN',
-            'items' => []
+            'movementDate' => '2024-01-15',
+            'movementType' => 'IN',
+            'referenceNumber' => 'REF001',
+            'items' => [
+                [
+                    'itemCode' => 'PROD001',
+                    'itemName' => 'Test Product',
+                    'quantity' => 50,
+                    'unitPrice' => 50.00,
+                    'totalValue' => 2500.00
+                ]
+            ]
         ];
-
-        $this->mockKraApi->shouldReceive('sendInventoryMovement')
-            ->once()
-            ->andThrow(new KraApiException('Inventory movement failed', 1007));
 
         $this->expectException(KraApiException::class);
-        $this->expectExceptionMessage('Inventory movement failed');
+        $this->expectExceptionMessage('Movement submission failed');
 
-        $this->kraInventoryService->sendInventoryMovement($movementData);
+        $this->kraInventoryService->sendInventoryMovement($this->kraDevice, $movementData);
     }
 
-    public function test_build_inventory_xml()
+    public function test_send_inventory_movement_vscu_device()
     {
-        $xml = $this->kraInventoryService->buildInventoryXml([
-            'kra_device_id' => 'KRACU0100000001',
-            'items' => [
-                [
-                    'item_name' => 'Test Item 1',
-                    'quantity' => 10,
-                    'unit_price' => 100.00
-                ],
-                [
-                    'item_name' => 'Test Item 2',
-                    'quantity' => 5,
-                    'unit_price' => 50.00
-                ]
-            ]
+        // Create VSCU device
+        $vscuDevice = KraDevice::factory()->for($this->taxpayerPin)->create([
+            'kra_scu_id' => 'KRACU0100000002',
+            'status' => 'ACTIVATED',
+            'device_type' => 'VSCU',
+            'config' => ['vscu_jar_url' => 'http://vscu.local:8080']
         ]);
 
-        $this->assertStringContainsString('<DeviceId>KRACU0100000001</DeviceId>', $xml);
-        $this->assertStringContainsString('<ItemName>Test Item 1</ItemName>', $xml);
-        $this->assertStringContainsString('<ItemName>Test Item 2</ItemName>', $xml);
-        $this->assertStringContainsString('<Quantity>10</Quantity>', $xml);
-        $this->assertStringContainsString('<Quantity>5</Quantity>', $xml);
-        $this->assertStringContainsString('<UnitPrice>100.00</UnitPrice>', $xml);
-        $this->assertStringContainsString('<UnitPrice>50.00</UnitPrice>', $xml);
-    }
+        // Mock successful KRA response
+        $mockResponse = new Response(
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], $this->getMockMovementResponse())
+        );
 
-    public function test_build_inventory_movement_xml()
-    {
-        $xml = $this->kraInventoryService->buildInventoryMovementXml([
-            'kra_device_id' => 'KRACU0100000001',
-            'movement_type' => 'IN',
-            'items' => [
-                [
-                    'item_name' => 'Test Item',
-                    'quantity' => 5,
-                    'unit_price' => 100.00
-                ]
-            ]
-        ]);
+        $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
 
-        $this->assertStringContainsString('<DeviceId>KRACU0100000001</DeviceId>', $xml);
-        $this->assertStringContainsString('<MovementType>IN</MovementType>', $xml);
-        $this->assertStringContainsString('<ItemName>Test Item</ItemName>', $xml);
-        $this->assertStringContainsString('<Quantity>5</Quantity>', $xml);
-        $this->assertStringContainsString('<UnitPrice>100.00</UnitPrice>', $xml);
-    }
-
-    public function test_build_inventory_movement_xml_out()
-    {
-        $xml = $this->kraInventoryService->buildInventoryMovementXml([
-            'kra_device_id' => 'KRACU0100000001',
-            'movement_type' => 'OUT',
-            'items' => [
-                [
-                    'item_name' => 'Test Item',
-                    'quantity' => -3,
-                    'unit_price' => 100.00
-                ]
-            ]
-        ]);
-
-        $this->assertStringContainsString('<MovementType>OUT</MovementType>', $xml);
-        $this->assertStringContainsString('<Quantity>-3</Quantity>', $xml);
-    }
-
-    public function test_validate_inventory_data_success()
-    {
-        $inventoryData = [
-            'kra_device_id' => 'test-device',
-            'items' => [
-                [
-                    'item_name' => 'Test Item',
-                    'quantity' => 10,
-                    'unit_price' => 100.00
-                ]
-            ]
-        ];
-
-        $result = $this->kraInventoryService->validateInventoryData($inventoryData);
-
-        $this->assertTrue($result);
-    }
-
-    public function test_validate_inventory_data_missing_device()
-    {
-        $inventoryData = [
-            'items' => []
-        ];
-
-        $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('KRA device ID is required');
-
-        $this->kraInventoryService->validateInventoryData($inventoryData);
-    }
-
-    public function test_validate_inventory_data_empty_items()
-    {
-        $inventoryData = [
-            'kra_device_id' => 'test-device',
-            'items' => []
-        ];
-
-        $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('At least one item is required');
-
-        $this->kraInventoryService->validateInventoryData($inventoryData);
-    }
-
-    public function test_validate_movement_data_success()
-    {
         $movementData = [
-            'kra_device_id' => 'test-device',
-            'movement_type' => 'IN',
+            'movementDate' => '2024-01-15',
+            'movementType' => 'IN',
+            'referenceNumber' => 'VSCU-REF001',
             'items' => [
                 [
-                    'item_name' => 'Test Item',
-                    'quantity' => 5,
-                    'unit_price' => 100.00
+                    'itemCode' => 'VSCU001',
+                    'itemName' => 'VSCU Product',
+                    'quantity' => 100,
+                    'unitPrice' => 100.00,
+                    'totalValue' => 10000.00
                 ]
             ]
         ];
 
-        $result = $this->kraInventoryService->validateMovementData($movementData);
+        $result = $this->kraInventoryService->sendInventoryMovement($vscuDevice, $movementData);
 
-        $this->assertTrue($result);
+        $this->assertIsArray($result);
+        $this->assertEquals('SUCCESS', $result['status']);
+        $this->assertEquals('MOV001', $result['movementId']);
     }
 
-    public function test_validate_movement_data_invalid_type()
+    public function test_send_inventory_with_supplier_info()
     {
-        $movementData = [
-            'kra_device_id' => 'test-device',
-            'movement_type' => 'INVALID',
-            'items' => []
+        // Mock successful KRA response
+        $mockResponse = new Response(
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], $this->getMockInventoryResponse())
+        );
+
+        $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
+
+        $inventoryData = [
+            'inventoryDate' => '2024-01-15',
+            'supplierPin' => 'B987654321A',
+            'supplierName' => 'Supplier Company Ltd',
+            'items' => [
+                [
+                    'itemCode' => 'PROD001',
+                    'itemName' => 'Test Product',
+                    'quantity' => 100,
+                    'unitPrice' => 50.00,
+                    'totalValue' => 5000.00
+                ]
+            ]
         ];
 
-        $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('Movement type must be IN or OUT');
+        $result = $this->kraInventoryService->sendInventory($this->kraDevice, $inventoryData);
 
-        $this->kraInventoryService->validateMovementData($movementData);
+        $this->assertIsArray($result);
+        $this->assertEquals('SUCCESS', $result['status']);
+        $this->assertEquals('INV001', $result['inventoryId']);
+    }
+
+    private function getMockInventoryResponse(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8"?>
+<KRA>
+    <STATUS>SUCCESS</STATUS>
+    <DATA>
+        <InventoryId>INV001</InventoryId>
+        <InventoryDate>2024-01-15</InventoryDate>
+        <SubmissionDate>15/01/2024</SubmissionDate>
+        <SubmissionTime>14:30:25</SubmissionTime>
+        <Status>SUBMITTED</Status>
+    </DATA>
+</KRA>';
+    }
+
+    private function getMockMovementResponse(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8"?>
+<KRA>
+    <STATUS>SUCCESS</STATUS>
+    <DATA>
+        <MovementId>MOV001</MovementId>
+        <MovementDate>2024-01-15</MovementDate>
+        <MovementType>IN</MovementType>
+        <SubmissionDate>15/01/2024</SubmissionDate>
+        <SubmissionTime>14:30:25</SubmissionTime>
+        <Status>SUBMITTED</Status>
+    </DATA>
+</KRA>';
     }
 } 

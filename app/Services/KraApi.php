@@ -64,6 +64,11 @@ class KraApi
      */
     public function sendCommand(string $endpoint, SimpleXMLElement $xmlPayload, bool $isStrictTimeout = false): HttpResponse
     {
+        // Check if simulation mode is enabled
+        if (config('kra.simulation_mode', false)) {
+            return $this->getSimulatedResponse($endpoint, $xmlPayload);
+        }
+
         $url = rtrim($this->baseUrl, '/') . '/' . ltrim($endpoint, '/');
         $timeoutMs = $isStrictTimeout ? $this->strictTimeoutMs : $this->generalTimeoutMs;
 
@@ -143,6 +148,103 @@ class KraApi
                 $e
             );
         }
+    }
+
+    /**
+     * Get simulated response for development/testing.
+     */
+    private function getSimulatedResponse(string $endpoint, SimpleXMLElement $xmlPayload): HttpResponse
+    {
+        logger()->info("KRA_SIMULATION: Simulating response for endpoint {$endpoint}", [
+            'payload' => $xmlPayload->asXML(),
+            'trace_id' => request()->attributes->get('traceId')
+        ]);
+
+        // Parse the XML payload to determine the command
+        $command = (string) ($xmlPayload->CMD ?? 'UNKNOWN');
+        
+        // Generate appropriate mock response based on command
+        $mockResponse = $this->generateMockResponse($command, $xmlPayload);
+        
+        // Create a mock HTTP response
+        return new \Illuminate\Http\Client\Response(
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], $mockResponse)
+        );
+    }
+
+    /**
+     * Generate mock response based on KRA command.
+     */
+    private function generateMockResponse(string $command, SimpleXMLElement $xmlPayload): string
+    {
+        switch ($command) {
+            case 'selectInitOsdcInfo':
+                return $this->getMockInitResponse();
+            case 'SEND_ITEM':
+                return $this->getMockSendItemResponse();
+            case 'RECV_ITEM':
+                return $this->getMockRecvItemResponse();
+            default:
+                return $this->getMockGenericResponse($command);
+        }
+    }
+
+    private function getMockInitResponse(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <STATUS>P</STATUS>
+    <DATA>
+        <branchOfficeId>00</branchOfficeId>
+        <deviceType>VSCU</deviceType>
+        <deviceStatus>ACTIVE</deviceStatus>
+        <lastSyncTime>20250704120000</lastSyncTime>
+    </DATA>
+</root>';
+    }
+
+    private function getMockSendItemResponse(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <STATUS>P</STATUS>
+    <DATA>
+        <message>Item registered successfully</message>
+        <itemCode>ITEM001</itemCode>
+        <registrationDate>20250704120000</registrationDate>
+    </DATA>
+</root>';
+    }
+
+    private function getMockRecvItemResponse(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <STATUS>P</STATUS>
+    <DATA>
+        <itemCd>ITEM001</itemCd>
+        <itemClsCd>CLS001</itemClsCd>
+        <itemNm>Sample Item</itemNm>
+        <itemTyCd>2</itemTyCd>
+        <taxTyCd>B</taxTyCd>
+        <InitlWhUntpc>100.00</InitlWhUntpc>
+        <dfltDlUntpc>120.00</dfltDlUntpc>
+        <useYn>Y</useYn>
+    </DATA>
+</root>';
+    }
+
+    private function getMockGenericResponse(string $command): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <STATUS>P</STATUS>
+    <DATA>
+        <message>Command executed successfully</message>
+        <command>' . htmlspecialchars($command) . '</command>
+        <timestamp>' . now()->format('YmdHis') . '</timestamp>
+    </DATA>
+</root>';
     }
 
     public function getBaseUrl(): string

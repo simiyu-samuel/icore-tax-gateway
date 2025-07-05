@@ -59,3 +59,11 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+KRA_API_SANDBOX_BASE_URL=https://test-api.kra.go.ke
+KRA_API_PRODUCTION_BASE_URL=https://etims.kra.go.ke
+KRA_VSCU_JAR_BASE_URL=http://127.0.0.1:8088
+
+# KRA Simulation Mode (for development/testing)
+KRA_SIMULATION_MODE=true
+KRA_SIMULATION_RESPONSES=true

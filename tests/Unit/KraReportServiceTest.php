@@ -9,23 +9,42 @@ use App\Models\KraDevice;
 use App\Models\TaxpayerPin;
 use App\Exceptions\KraApiException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Config;
 use Mockery;
+use Illuminate\Http\Client\Response;
 
 class KraReportServiceTest extends TestCase
 {
     use RefreshDatabase;
 
-    private KraReportService $kraReportService;
-    private $mockKraApi;
+    private $kraApiMock;
+    private $kraReportService;
+    private $kraDevice;
+    private $taxpayerPin;
 
     protected function setUp(): void
     {
         parent::setUp();
         
-        $this->mockKraApi = Mockery::mock(KraApi::class);
-        $this->app->instance(KraApi::class, $this->mockKraApi);
+        // Enable simulation mode for testing
+        Config::set('kra.simulation_mode', true);
         
-        $this->kraReportService = new KraReportService($this->mockKraApi);
+        // Create real models with factories
+        $this->taxpayerPin = TaxpayerPin::factory()->create([
+            'pin' => 'A123456789B'
+        ]);
+
+        $this->kraDevice = KraDevice::factory()->for($this->taxpayerPin)->create([
+            'kra_scu_id' => 'KRACU0100000001',
+            'status' => 'ACTIVATED',
+            'device_type' => 'OSCU'
+        ]);
+
+        // Mock KraApi
+        $this->kraApiMock = Mockery::mock(KraApi::class);
+        $this->kraApiMock->shouldReceive('getBaseUrl')->andReturn('http://test.com');
+        $this->kraApiMock->shouldReceive('setBaseUrl')->zeroOrMoreTimes()->andReturnNull();
+        $this->kraReportService = new KraReportService($this->kraApiMock);
     }
 
     protected function tearDown(): void
@@ -34,323 +53,206 @@ class KraReportServiceTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_get_x_daily_report_success()
+    public function test_generate_z_report_success()
     {
-        $taxpayerPin = TaxpayerPin::factory()->create([
-            'pin' => 'A123456789B'
-        ]);
+        $mockResponse = new Response(
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], $this->getMockZReportResponse())
+        );
 
-        $kraDevice = KraDevice::factory()->create([
-            'taxpayer_pin_id' => $taxpayerPin->id,
-            'kra_scu_id' => 'KRACU0100000001',
-            'status' => 'ACTIVATED'
-        ]);
+        $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
 
         $reportData = [
-            'kra_device_id' => $kraDevice->id,
-            'report_date' => '2024-01-15'
+            'reportType' => 'Z_REPORT',
+            'startDate' => '2024-01-01',
+            'endDate' => '2024-01-15'
         ];
 
-        $mockKraResponse = [
-            'response_code' => '0',
-            'response_message' => 'Success',
-            'report_data' => 'X Daily Report Content'
-        ];
-
-        $this->mockKraApi->shouldReceive('getXDailyReport')
-            ->once()
-            ->with(Mockery::subset($reportData))
-            ->andReturn($mockKraResponse);
-
-        $result = $this->kraReportService->getXDailyReport($reportData);
+        $result = $this->kraReportService->generateReport($this->kraDevice, $reportData);
 
         $this->assertIsArray($result);
-        $this->assertEquals('0', $result['response_code']);
-        $this->assertEquals('Success', $result['response_message']);
-        $this->assertEquals('X Daily Report Content', $result['report_data']);
+        $this->assertEquals('SUCCESS', $result['status']);
+        $this->assertEquals('Z_REPORT', $result['reportType']);
+        $this->assertNotEmpty($result['reportId']);
     }
 
-    public function test_get_x_daily_report_device_not_found()
+    public function test_generate_x_report_success()
     {
-        $reportData = [
-            'kra_device_id' => 'non-existent-device',
-            'report_date' => '2024-01-15'
-        ];
+        $mockResponse = new Response(
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], $this->getMockXReportResponse())
+        );
 
-        $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('KRA device not found');
-
-        $this->kraReportService->getXDailyReport($reportData);
-    }
-
-    public function test_get_x_daily_report_device_not_activated()
-    {
-        $taxpayerPin = TaxpayerPin::factory()->create([
-            'pin' => 'A123456789B'
-        ]);
-
-        $kraDevice = KraDevice::factory()->create([
-            'taxpayer_pin_id' => $taxpayerPin->id,
-            'kra_scu_id' => 'KRACU0100000001',
-            'status' => 'PENDING' // Not activated
-        ]);
+        $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
 
         $reportData = [
-            'kra_device_id' => $kraDevice->id,
-            'report_date' => '2024-01-15'
+            'reportType' => 'X_REPORT',
+            'startDate' => '2024-01-01',
+            'endDate' => '2024-01-15'
         ];
 
-        $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('KRA device is not activated');
-
-        $this->kraReportService->getXDailyReport($reportData);
-    }
-
-    public function test_get_x_daily_report_kra_api_exception()
-    {
-        $taxpayerPin = TaxpayerPin::factory()->create([
-            'pin' => 'A123456789B'
-        ]);
-
-        $kraDevice = KraDevice::factory()->create([
-            'taxpayer_pin_id' => $taxpayerPin->id,
-            'kra_scu_id' => 'KRACU0100000001',
-            'status' => 'ACTIVATED'
-        ]);
-
-        $reportData = [
-            'kra_device_id' => $kraDevice->id,
-            'report_date' => '2024-01-15'
-        ];
-
-        $this->mockKraApi->shouldReceive('getXDailyReport')
-            ->once()
-            ->andThrow(new KraApiException('X Daily report failed', 1009));
-
-        $this->expectException(KraApiException::class);
-        $this->expectExceptionMessage('X Daily report failed');
-
-        $this->kraReportService->getXDailyReport($reportData);
-    }
-
-    public function test_get_z_daily_report_success()
-    {
-        $taxpayerPin = TaxpayerPin::factory()->create([
-            'pin' => 'A123456789B'
-        ]);
-
-        $kraDevice = KraDevice::factory()->create([
-            'taxpayer_pin_id' => $taxpayerPin->id,
-            'kra_scu_id' => 'KRACU0100000001',
-            'status' => 'ACTIVATED'
-        ]);
-
-        $reportData = [
-            'kra_device_id' => $kraDevice->id,
-            'report_date' => '2024-01-15'
-        ];
-
-        $mockKraResponse = [
-            'response_code' => '0',
-            'response_message' => 'Success',
-            'report_data' => 'Z Daily Report Content'
-        ];
-
-        $this->mockKraApi->shouldReceive('getZDailyReport')
-            ->once()
-            ->with(Mockery::subset($reportData))
-            ->andReturn($mockKraResponse);
-
-        $result = $this->kraReportService->getZDailyReport($reportData);
+        $result = $this->kraReportService->generateReport($this->kraDevice, $reportData);
 
         $this->assertIsArray($result);
-        $this->assertEquals('0', $result['response_code']);
-        $this->assertEquals('Success', $result['response_message']);
-        $this->assertEquals('Z Daily Report Content', $result['report_data']);
+        $this->assertEquals('SUCCESS', $result['status']);
+        $this->assertEquals('X_REPORT', $result['reportType']);
     }
 
-    public function test_get_z_daily_report_kra_api_exception()
+    public function test_generate_daily_report_success()
     {
-        $taxpayerPin = TaxpayerPin::factory()->create([
-            'pin' => 'A123456789B'
-        ]);
+        $mockResponse = new Response(
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], $this->getMockDailyReportResponse())
+        );
 
-        $kraDevice = KraDevice::factory()->create([
-            'taxpayer_pin_id' => $taxpayerPin->id,
-            'kra_scu_id' => 'KRACU0100000001',
-            'status' => 'ACTIVATED'
-        ]);
+        $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
 
         $reportData = [
-            'kra_device_id' => $kraDevice->id,
-            'report_date' => '2024-01-15'
+            'reportType' => 'DAILY_REPORT',
+            'reportDate' => '2024-01-15'
         ];
 
-        $this->mockKraApi->shouldReceive('getZDailyReport')
-            ->once()
-            ->andThrow(new KraApiException('Z Daily report failed', 1010));
-
-        $this->expectException(KraApiException::class);
-        $this->expectExceptionMessage('Z Daily report failed');
-
-        $this->kraReportService->getZDailyReport($reportData);
-    }
-
-    public function test_get_plu_report_success()
-    {
-        $taxpayerPin = TaxpayerPin::factory()->create([
-            'pin' => 'A123456789B'
-        ]);
-
-        $kraDevice = KraDevice::factory()->create([
-            'taxpayer_pin_id' => $taxpayerPin->id,
-            'kra_scu_id' => 'KRACU0100000001',
-            'status' => 'ACTIVATED'
-        ]);
-
-        $reportData = [
-            'kra_device_id' => $kraDevice->id,
-            'report_date' => '2024-01-15'
-        ];
-
-        $mockKraResponse = [
-            'response_code' => '0',
-            'response_message' => 'Success',
-            'report_data' => 'PLU Report Content'
-        ];
-
-        $this->mockKraApi->shouldReceive('getPluReport')
-            ->once()
-            ->with(Mockery::subset($reportData))
-            ->andReturn($mockKraResponse);
-
-        $result = $this->kraReportService->getPluReport($reportData);
+        $result = $this->kraReportService->generateReport($this->kraDevice, $reportData);
 
         $this->assertIsArray($result);
-        $this->assertEquals('0', $result['response_code']);
-        $this->assertEquals('Success', $result['response_message']);
-        $this->assertEquals('PLU Report Content', $result['report_data']);
+        $this->assertEquals('SUCCESS', $result['status']);
+        $this->assertEquals('DAILY_REPORT', $result['reportType']);
     }
 
-    public function test_get_plu_report_kra_api_exception()
+    public function test_generate_report_missing_required_fields()
     {
-        $taxpayerPin = TaxpayerPin::factory()->create([
-            'pin' => 'A123456789B'
-        ]);
-
-        $kraDevice = KraDevice::factory()->create([
-            'taxpayer_pin_id' => $taxpayerPin->id,
-            'kra_scu_id' => 'KRACU0100000001',
-            'status' => 'ACTIVATED'
-        ]);
-
         $reportData = [
-            'kra_device_id' => $kraDevice->id,
-            'report_date' => '2024-01-15'
+            'startDate' => '2024-01-01'
         ];
 
-        $this->mockKraApi->shouldReceive('getPluReport')
-            ->once()
-            ->andThrow(new KraApiException('PLU report failed', 1011));
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Report type is required');
+
+        $this->kraReportService->generateReport($this->kraDevice, $reportData);
+    }
+
+    public function test_generate_report_invalid_report_type()
+    {
+        $reportData = [
+            'reportType' => 'INVALID_REPORT',
+            'startDate' => '2024-01-01',
+            'endDate' => '2024-01-15'
+        ];
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid report type: INVALID_REPORT');
+
+        $this->kraReportService->generateReport($this->kraDevice, $reportData);
+    }
+
+    public function test_generate_report_kra_api_exception()
+    {
+        $this->kraApiMock->shouldReceive('sendCommand')->andThrow(new KraApiException('Report generation failed', 'REPORT_ERROR', 'Error response'));
+
+        $reportData = [
+            'reportType' => 'Z_REPORT',
+            'startDate' => '2024-01-01',
+            'endDate' => '2024-01-15'
+        ];
 
         $this->expectException(KraApiException::class);
-        $this->expectExceptionMessage('PLU report failed');
+        $this->expectExceptionMessage('Report generation failed');
 
-        $this->kraReportService->getPluReport($reportData);
+        $this->kraReportService->generateReport($this->kraDevice, $reportData);
     }
 
-    public function test_build_x_daily_report_xml()
+    public function test_generate_report_missing_data_node()
     {
-        $xml = $this->kraReportService->buildXDailyReportXml([
-            'kra_device_id' => 'KRACU0100000001',
-            'report_date' => '2024-01-15'
+        $mockResponse = new Response(
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], '<KRA><STATUS>ERROR</STATUS></KRA>')
+        );
+
+        $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
+
+        $reportData = [
+            'reportType' => 'Z_REPORT',
+            'startDate' => '2024-01-01',
+            'endDate' => '2024-01-15'
+        ];
+
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('Missing DATA node in KRA response');
+
+        $this->kraReportService->generateReport($this->kraDevice, $reportData);
+    }
+
+    public function test_generate_report_vscu_device()
+    {
+        $vscuDevice = KraDevice::factory()->for($this->taxpayerPin)->create([
+            'kra_scu_id' => 'KRACU0100000002',
+            'status' => 'ACTIVATED',
+            'device_type' => 'VSCU',
+            'config' => ['vscu_jar_url' => 'http://vscu.local:8080']
         ]);
 
-        $this->assertStringContainsString('<DeviceId>KRACU0100000001</DeviceId>', $xml);
-        $this->assertStringContainsString('<ReportDate>2024-01-15</ReportDate>', $xml);
-    }
+        $mockResponse = new Response(
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], $this->getMockZReportResponse())
+        );
 
-    public function test_build_z_daily_report_xml()
-    {
-        $xml = $this->kraReportService->buildZDailyReportXml([
-            'kra_device_id' => 'KRACU0100000001',
-            'report_date' => '2024-01-15'
-        ]);
+        $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
 
-        $this->assertStringContainsString('<DeviceId>KRACU0100000001</DeviceId>', $xml);
-        $this->assertStringContainsString('<ReportDate>2024-01-15</ReportDate>', $xml);
-    }
-
-    public function test_build_plu_report_xml()
-    {
-        $xml = $this->kraReportService->buildPluReportXml([
-            'kra_device_id' => 'KRACU0100000001',
-            'report_date' => '2024-01-15'
-        ]);
-
-        $this->assertStringContainsString('<DeviceId>KRACU0100000001</DeviceId>', $xml);
-        $this->assertStringContainsString('<ReportDate>2024-01-15</ReportDate>', $xml);
-    }
-
-    public function test_validate_report_data_success()
-    {
         $reportData = [
-            'kra_device_id' => 'test-device',
-            'report_date' => '2024-01-15'
+            'reportType' => 'Z_REPORT',
+            'startDate' => '2024-01-01',
+            'endDate' => '2024-01-15'
         ];
 
-        $result = $this->kraReportService->validateReportData($reportData);
+        $result = $this->kraReportService->generateReport($vscuDevice, $reportData);
 
-        $this->assertTrue($result);
+        $this->assertIsArray($result);
+        $this->assertEquals('SUCCESS', $result['status']);
+        $this->assertEquals('Z_REPORT', $result['reportType']);
     }
 
-    public function test_validate_report_data_missing_device()
+    private function getMockZReportResponse(): string
     {
-        $reportData = [
-            'report_date' => '2024-01-15'
-        ];
-
-        $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('KRA device ID is required');
-
-        $this->kraReportService->validateReportData($reportData);
+        return '<?xml version="1.0" encoding="UTF-8"?>
+<KRA>
+    <STATUS>SUCCESS</STATUS>
+    <DATA>
+        <ReportId>Z_REPORT_123456</ReportId>
+        <ReportType>Z_REPORT</ReportType>
+        <StartDate>2024-01-01</StartDate>
+        <EndDate>2024-01-15</EndDate>
+        <GenerationDate>15/01/2024</GenerationDate>
+        <GenerationTime>14:30:25</GenerationTime>
+        <Status>GENERATED</Status>
+    </DATA>
+</KRA>';
     }
 
-    public function test_validate_report_data_missing_date()
+    private function getMockXReportResponse(): string
     {
-        $reportData = [
-            'kra_device_id' => 'test-device'
-        ];
-
-        $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('Report date is required');
-
-        $this->kraReportService->validateReportData($reportData);
+        return '<?xml version="1.0" encoding="UTF-8"?>
+<KRA>
+    <STATUS>SUCCESS</STATUS>
+    <DATA>
+        <ReportId>X_REPORT_123456</ReportId>
+        <ReportType>X_REPORT</ReportType>
+        <StartDate>2024-01-01</StartDate>
+        <EndDate>2024-01-15</EndDate>
+        <GenerationDate>15/01/2024</GenerationDate>
+        <GenerationTime>14:30:25</GenerationTime>
+        <Status>GENERATED</Status>
+    </DATA>
+</KRA>';
     }
 
-    public function test_validate_report_data_invalid_date()
+    private function getMockDailyReportResponse(): string
     {
-        $reportData = [
-            'kra_device_id' => 'test-device',
-            'report_date' => 'invalid-date'
-        ];
-
-        $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('Invalid report date format');
-
-        $this->kraReportService->validateReportData($reportData);
-    }
-
-    public function test_validate_report_data_future_date()
-    {
-        $reportData = [
-            'kra_device_id' => 'test-device',
-            'report_date' => '2025-01-15'
-        ];
-
-        $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('Report date cannot be in the future');
-
-        $this->kraReportService->validateReportData($reportData);
+        return '<?xml version="1.0" encoding="UTF-8"?>
+<KRA>
+    <STATUS>SUCCESS</STATUS>
+    <DATA>
+        <ReportId>DAILY_REPORT_123456</ReportId>
+        <ReportType>DAILY_REPORT</ReportType>
+        <ReportDate>2024-01-15</ReportDate>
+        <GenerationDate>15/01/2024</GenerationDate>
+        <GenerationTime>14:30:25</GenerationTime>
+        <Status>GENERATED</Status>
+    </DATA>
+</KRA>';
     }
 } 

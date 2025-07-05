@@ -4,6 +4,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Hash;
 
 class ApiClient extends Model
 {
@@ -32,12 +33,27 @@ class ApiClient extends Model
 
     /**
      * Find a client by their API key.
-     * Note: For production, store hashed API keys and compare using `Hash::check`.
-     * For simplicity in dev, we store plain here.
+     * Uses Hash::check to compare the provided key with the stored hash.
      */
     public static function findByApiKey(string $apiKey): ?self
     {
-        return static::where('api_key', $apiKey)->where('is_active', true)->first();
+        $clients = static::where('is_active', true)->get();
+        
+        foreach ($clients as $client) {
+            if (Hash::check($apiKey, $client->api_key)) {
+                return $client;
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Hash the API key before saving
+     */
+    public function setApiKeyAttribute($value)
+    {
+        $this->attributes['api_key'] = Hash::make($value);
     }
 
     public function taxpayerPins()

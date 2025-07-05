@@ -21,6 +21,12 @@ return new class extends Migration
             $table->json('config')->nullable(); // JSON for VSCU local URL, firmware version, etc.
             $table->timestamp('last_status_check_at')->nullable();
             $table->timestamps();
+            
+            // Add indexes for better performance
+            $table->index('taxpayer_pin_id');
+            $table->index('status');
+            $table->index('device_type');
+            $table->index('last_status_check_at');
         });
         // ...
     }

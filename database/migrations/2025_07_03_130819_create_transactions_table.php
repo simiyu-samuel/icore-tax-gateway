@@ -35,6 +35,14 @@ return new class extends Migration
             $table->timestamps();
 
             $table->unique(['kra_device_id', 'internal_receipt_number', 'receipt_type', 'transaction_type'], 'unique_kra_device_internal_txn');
+            
+            // Add indexes for better performance
+            $table->index('kra_device_id');
+            $table->index('taxpayer_pin_id');
+            $table->index('kra_scu_id');
+            $table->index('journal_status');
+            $table->index('kra_timestamp');
+            $table->index(['transaction_type', 'receipt_type']);
         });
         // ...
     }

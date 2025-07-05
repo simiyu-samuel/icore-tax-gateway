@@ -15,6 +15,10 @@ return new class extends Migration
             $table->string('allowed_taxpayer_pins', 500)->nullable(); // Comma-separated list or JSON for complex permissions
             $table->timestamp('last_used_at')->nullable();
             $table->timestamps();
+            
+            // Add indexes for better performance
+            $table->index('is_active');
+            $table->index('last_used_at');
         });
     }
 

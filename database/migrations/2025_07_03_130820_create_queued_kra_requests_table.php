@@ -24,6 +24,13 @@ return new class extends Migration
             $table->timestamp('next_attempt_at')->nullable(); // For exponential backoff
             $table->text('error_message')->nullable();
             $table->timestamps();
+            
+            // Add indexes for better performance
+            $table->index('kra_device_id');
+            $table->index('transaction_id');
+            $table->index('status');
+            $table->index('next_attempt_at');
+            $table->index(['status', 'next_attempt_at']); // Composite index for queue processing
         });
         // ...
     }

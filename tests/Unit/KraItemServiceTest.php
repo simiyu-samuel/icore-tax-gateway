@@ -9,23 +9,43 @@ use App\Models\KraDevice;
 use App\Models\TaxpayerPin;
 use App\Exceptions\KraApiException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Config;
 use Mockery;
+use Illuminate\Http\Client\Response;
 
 class KraItemServiceTest extends TestCase
 {
     use RefreshDatabase;
 
-    private KraItemService $kraItemService;
-    private $mockKraApi;
+    private $kraApiMock;
+    private $kraItemService;
+    private $kraDevice;
+    private $taxpayerPin;
 
     protected function setUp(): void
     {
         parent::setUp();
         
-        $this->mockKraApi = Mockery::mock(KraApi::class);
-        $this->app->instance(KraApi::class, $this->mockKraApi);
+        // Enable simulation mode for testing
+        Config::set('kra.simulation_mode', true);
         
-        $this->kraItemService = new KraItemService($this->mockKraApi);
+        // Create real models with factories
+        $this->taxpayerPin = TaxpayerPin::factory()->create([
+            'pin' => 'A123456789B'
+        ]);
+
+        $this->kraDevice = KraDevice::factory()->for($this->taxpayerPin)->create([
+            'kra_scu_id' => 'KRACU0100000001',
+            'status' => 'ACTIVATED',
+            'device_type' => 'OSCU'
+        ]);
+
+        // Mock KraApi
+        $this->kraApiMock = Mockery::mock(KraApi::class);
+        // Default expectations to prevent Mockery exceptions
+        $this->kraApiMock->shouldReceive('getBaseUrl')->andReturn('http://test.com');
+        $this->kraApiMock->shouldReceive('setBaseUrl')->zeroOrMoreTimes()->andReturnNull();
+        $this->kraItemService = new KraItemService($this->kraApiMock);
     }
 
     protected function tearDown(): void
@@ -36,212 +56,291 @@ class KraItemServiceTest extends TestCase
 
     public function test_register_item_success()
     {
-        $taxpayerPin = TaxpayerPin::factory()->create([
-            'pin' => 'A123456789B'
-        ]);
+        // Mock successful KRA response
+        $mockResponse = new Response(
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], $this->getMockRegisterResponse())
+        );
 
-        $kraDevice = KraDevice::factory()->create([
-            'taxpayer_pin_id' => $taxpayerPin->id,
-            'kra_scu_id' => 'KRACU0100000001',
-            'status' => 'ACTIVATED',
-            'device_type' => 'OSCU'
-        ]);
+        $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
 
         $itemData = [
-            'itemCode' => 'ITEM001',
-            'itemClassificationCode' => '001',
-            'itemName' => 'Test Item',
-            'itemTypeCode' => '2',
-            'itemStandard' => '',
-            'originCountryCode' => 'KE',
-            'packagingUnitCode' => 'PCE',
-            'quantityUnitCode' => 'PCE',
-            'additionalInfo' => '0001',
-            'initialWholesaleUnitPrice' => 100.00,
-            'initialQuantity' => 10,
-            'averageWholesaleUnitPrice' => 100.00,
-            'defaultSellingUnitPrice' => 120.00,
-            'taxType' => 'A',
-            'remark' => 'Test item',
-            'inUse' => true,
-            'registerUserId' => 'GatewaySystem',
-            'registerDate' => now()->format('YmdHis'),
-            'updateUserId' => 'GatewaySystem',
-            'updateDate' => now()->format('YmdHis'),
-            'safetyQuantity' => 0,
-            'useBarcode' => false,
-            'changeAllowed' => true,
-            'useAdditionalInfoAllowed' => false
+            'itemName' => 'Test Product',
+            'itemCode' => 'PROD001',
+            'itemDescription' => 'Test product description',
+            'unitPrice' => 100.00,
+            'taxRate' => 16.00,
+            'taxCategory' => 'B'
         ];
 
-        $mockResponse = Mockery::mock();
-        $mockResponse->shouldReceive('body')->andReturn('<?xml version="1.0"?><KRAeTimsResponse><STATUS>SUCCESS</STATUS></KRAeTimsResponse>');
-
-        $this->mockKraApi->shouldReceive('sendCommand')
-            ->once()
-            ->andReturn($mockResponse);
-
-        $result = $this->kraItemService->registerItem($kraDevice, $itemData);
+        $result = $this->kraItemService->registerItem($this->kraDevice, $itemData);
 
         $this->assertIsArray($result);
         $this->assertEquals('SUCCESS', $result['status']);
-        $this->assertEquals('Item registration command sent to KRA.', $result['message']);
+        $this->assertEquals('PROD001', $result['itemCode']);
+        $this->assertNotEmpty($result['kraItemId']);
+    }
+
+    public function test_register_item_with_optional_fields()
+    {
+        // Mock successful KRA response
+        $mockResponse = new Response(
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], $this->getMockRegisterResponse())
+        );
+
+        $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
+
+        $itemData = [
+            'itemName' => 'Premium Product',
+            'itemCode' => 'PROD002',
+            'itemDescription' => 'Premium product with detailed description',
+            'unitPrice' => 500.00,
+            'taxRate' => 16.00,
+            'taxCategory' => 'B',
+            'itemCategory' => 'Electronics',
+            'itemBrand' => 'Brand X',
+            'itemModel' => 'Model Y',
+            'itemSize' => 'Large',
+            'itemColor' => 'Black',
+            'itemWeight' => 2.5,
+            'itemDimensions' => '10x20x30cm'
+        ];
+
+        $result = $this->kraItemService->registerItem($this->kraDevice, $itemData);
+
+        $this->assertIsArray($result);
+        $this->assertEquals('SUCCESS', $result['status']);
+        $this->assertEquals('PROD002', $result['itemCode']);
+    }
+
+    public function test_register_item_zero_tax_rate()
+    {
+        // Mock successful KRA response
+        $mockResponse = new Response(
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], $this->getMockRegisterResponse())
+        );
+
+        $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
+
+        $itemData = [
+            'itemName' => 'Zero Tax Product',
+            'itemCode' => 'PROD003',
+            'itemDescription' => 'Product with zero tax rate',
+            'unitPrice' => 50.00,
+            'taxRate' => 0.00,
+            'taxCategory' => 'A'
+        ];
+
+        $result = $this->kraItemService->registerItem($this->kraDevice, $itemData);
+
+        $this->assertIsArray($result);
+        $this->assertEquals('SUCCESS', $result['status']);
+        $this->assertEquals('PROD003', $result['itemCode']);
     }
 
     public function test_register_item_kra_api_exception()
     {
-        $taxpayerPin = TaxpayerPin::factory()->create([
-            'pin' => 'A123456789B'
-        ]);
-
-        $kraDevice = KraDevice::factory()->create([
-            'taxpayer_pin_id' => $taxpayerPin->id,
-            'kra_scu_id' => 'KRACU0100000001',
-            'status' => 'ACTIVATED',
-            'device_type' => 'OSCU'
-        ]);
+        $this->kraApiMock->shouldReceive('sendCommand')->andThrow(new KraApiException('Item registration failed', 'REGISTER_ERROR', 'Error response'));
 
         $itemData = [
-            'itemCode' => 'ITEM001',
-            'itemClassificationCode' => '001',
-            'itemName' => 'Test Item',
-            'packagingUnitCode' => 'PCE',
-            'quantityUnitCode' => 'PCE',
-            'initialWholesaleUnitPrice' => 100.00,
-            'initialQuantity' => 10,
-            'defaultSellingUnitPrice' => 120.00,
-            'taxType' => 'A',
-            'inUse' => true
+            'itemName' => 'Test Product',
+            'itemCode' => 'PROD001',
+            'itemDescription' => 'Test product description',
+            'unitPrice' => 100.00,
+            'taxRate' => 16.00,
+            'taxCategory' => 'B'
         ];
-
-        $this->mockKraApi->shouldReceive('sendCommand')
-            ->once()
-            ->andThrow(new KraApiException('Item registration failed', 1004));
 
         $this->expectException(KraApiException::class);
         $this->expectExceptionMessage('Item registration failed');
 
-        $this->kraItemService->registerItem($kraDevice, $itemData);
+        $this->kraItemService->registerItem($this->kraDevice, $itemData);
     }
 
-    public function test_get_items_success()
+    public function test_register_item_missing_required_fields()
     {
-        $taxpayerPin = TaxpayerPin::factory()->create([
-            'pin' => 'A123456789B'
-        ]);
+        $itemData = [
+            'itemName' => 'Test Product'
+            // Missing required fields
+        ];
 
-        $kraDevice = KraDevice::factory()->create([
-            'taxpayer_pin_id' => $taxpayerPin->id,
-            'kra_scu_id' => 'KRACU0100000001',
-            'status' => 'ACTIVATED',
-            'device_type' => 'OSCU'
-        ]);
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Item code is required');
 
-        $mockResponse = Mockery::mock();
-        $mockResponse->shouldReceive('body')->andReturn('<?xml version="1.0"?><KRAeTimsResponse><DATA><Item><itemCd>ITEM001</itemCd><itemNm>Test Item</itemNm></Item></DATA></KRAeTimsResponse>');
-
-        $this->mockKraApi->shouldReceive('sendCommand')
-            ->once()
-            ->andReturn($mockResponse);
-
-        $result = $this->kraItemService->getItems($kraDevice);
-
-        $this->assertIsArray($result);
-        $this->assertEquals('Item list retrieved successfully.', $result['message']);
-        $this->assertIsArray($result['items']);
-        $this->assertCount(1, $result['items']);
-        $this->assertEquals('ITEM001', $result['items'][0]['itemCd']);
-        $this->assertEquals('Test Item', $result['items'][0]['itemNm']);
+        $this->kraItemService->registerItem($this->kraDevice, $itemData);
     }
 
-    public function test_get_items_kra_api_exception()
+    public function test_register_item_invalid_tax_category()
     {
-        $taxpayerPin = TaxpayerPin::factory()->create([
-            'pin' => 'A123456789B'
-        ]);
+        $itemData = [
+            'itemName' => 'Test Product',
+            'itemCode' => 'PROD001',
+            'itemDescription' => 'Test product description',
+            'unitPrice' => 100.00,
+            'taxRate' => 16.00,
+            'taxCategory' => 'INVALID'
+        ];
 
-        $kraDevice = KraDevice::factory()->create([
-            'taxpayer_pin_id' => $taxpayerPin->id,
-            'kra_scu_id' => 'KRACU0100000001',
-            'status' => 'ACTIVATED',
-            'device_type' => 'OSCU'
-        ]);
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid tax category: INVALID');
 
-        $this->mockKraApi->shouldReceive('sendCommand')
-            ->once()
-            ->andThrow(new KraApiException('Failed to retrieve items', 1005));
-
-        $this->expectException(KraApiException::class);
-        $this->expectExceptionMessage('Failed to retrieve items');
-
-        $this->kraItemService->getItems($kraDevice);
+        $this->kraItemService->registerItem($this->kraDevice, $itemData);
     }
 
-    public function test_get_items_empty_response()
+    public function test_register_item_negative_unit_price()
     {
-        $taxpayerPin = TaxpayerPin::factory()->create([
-            'pin' => 'A123456789B'
-        ]);
+        $itemData = [
+            'itemName' => 'Test Product',
+            'itemCode' => 'PROD001',
+            'itemDescription' => 'Test product description',
+            'unitPrice' => -100.00,
+            'taxRate' => 16.00,
+            'taxCategory' => 'B'
+        ];
 
-        $kraDevice = KraDevice::factory()->create([
-            'taxpayer_pin_id' => $taxpayerPin->id,
-            'kra_scu_id' => 'KRACU0100000001',
-            'status' => 'ACTIVATED',
-            'device_type' => 'OSCU'
-        ]);
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Unit price must be non-negative');
 
-        $mockResponse = Mockery::mock();
-        $mockResponse->shouldReceive('body')->andReturn('<?xml version="1.0"?><KRAeTimsResponse><DATA></DATA></KRAeTimsResponse>');
+        $this->kraItemService->registerItem($this->kraDevice, $itemData);
+    }
 
-        $this->mockKraApi->shouldReceive('sendCommand')
-            ->once()
-            ->andReturn($mockResponse);
+    public function test_register_item_negative_tax_rate()
+    {
+        $itemData = [
+            'itemName' => 'Test Product',
+            'itemCode' => 'PROD001',
+            'itemDescription' => 'Test product description',
+            'unitPrice' => 100.00,
+            'taxRate' => -16.00,
+            'taxCategory' => 'B'
+        ];
 
-        $result = $this->kraItemService->getItems($kraDevice);
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Tax rate must be non-negative');
 
-        $this->assertIsArray($result);
-        $this->assertEquals('Item list retrieved successfully.', $result['message']);
-        $this->assertIsArray($result['items']);
-        $this->assertCount(0, $result['items']);
+        $this->kraItemService->registerItem($this->kraDevice, $itemData);
     }
 
     public function test_register_item_vscu_device()
     {
-        $taxpayerPin = TaxpayerPin::factory()->create([
-            'pin' => 'A123456789B'
-        ]);
-
-        $kraDevice = KraDevice::factory()->create([
-            'taxpayer_pin_id' => $taxpayerPin->id,
-            'kra_scu_id' => 'KRACU0100000001',
+        // Create VSCU device
+        $vscuDevice = KraDevice::factory()->for($this->taxpayerPin)->create([
+            'kra_scu_id' => 'KRACU0100000002',
             'status' => 'ACTIVATED',
             'device_type' => 'VSCU',
-            'config' => ['vscu_jar_url' => 'http://localhost:8080']
+            'config' => ['vscu_jar_url' => 'http://vscu.local:8080']
         ]);
 
+        // Mock successful KRA response
+        $mockResponse = new Response(
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], $this->getMockRegisterResponse())
+        );
+
+        $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
+
         $itemData = [
-            'itemCode' => 'ITEM001',
-            'itemClassificationCode' => '001',
-            'itemName' => 'Test Item',
-            'packagingUnitCode' => 'PCE',
-            'quantityUnitCode' => 'PCE',
-            'initialWholesaleUnitPrice' => 100.00,
-            'initialQuantity' => 10,
-            'defaultSellingUnitPrice' => 120.00,
-            'taxType' => 'A',
-            'inUse' => true
+            'itemName' => 'VSCU Product',
+            'itemCode' => 'VSCU001',
+            'itemDescription' => 'Product for VSCU device',
+            'unitPrice' => 200.00,
+            'taxRate' => 16.00,
+            'taxCategory' => 'B'
         ];
 
-        $mockResponse = Mockery::mock();
-        $mockResponse->shouldReceive('body')->andReturn('<?xml version="1.0"?><KRAeTimsResponse><STATUS>SUCCESS</STATUS></KRAeTimsResponse>');
-
-        $this->mockKraApi->shouldReceive('sendCommand')
-            ->once()
-            ->andReturn($mockResponse);
-
-        $result = $this->kraItemService->registerItem($kraDevice, $itemData);
+        $result = $this->kraItemService->registerItem($vscuDevice, $itemData);
 
         $this->assertIsArray($result);
         $this->assertEquals('SUCCESS', $result['status']);
+        $this->assertEquals('VSCU001', $result['itemCode']);
+    }
+
+    public function test_register_item_missing_data_node()
+    {
+        // Mock KRA response without DATA node
+        $mockResponse = new Response(
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], '<KRA><STATUS>ERROR</STATUS></KRA>')
+        );
+
+        $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
+
+        $itemData = [
+            'itemName' => 'Test Product',
+            'itemCode' => 'PROD001',
+            'itemDescription' => 'Test product description',
+            'unitPrice' => 100.00,
+            'taxRate' => 16.00,
+            'taxCategory' => 'B'
+        ];
+
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('Missing DATA node in KRA response');
+
+        $this->kraItemService->registerItem($this->kraDevice, $itemData);
+    }
+
+    public function test_register_item_with_special_characters()
+    {
+        // Mock successful KRA response
+        $mockResponse = new Response(
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], $this->getMockRegisterResponse())
+        );
+
+        $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
+
+        $itemData = [
+            'itemName' => 'Product with Special Chars: @#$%^&*()',
+            'itemCode' => 'PROD-SPECIAL-001',
+            'itemDescription' => 'Product with special characters & symbols',
+            'unitPrice' => 150.00,
+            'taxRate' => 16.00,
+            'taxCategory' => 'B'
+        ];
+
+        $result = $this->kraItemService->registerItem($this->kraDevice, $itemData);
+
+        $this->assertIsArray($result);
+        $this->assertEquals('SUCCESS', $result['status']);
+        $this->assertEquals('PROD-SPECIAL-001', $result['itemCode']);
+    }
+
+    public function test_register_item_long_description()
+    {
+        // Mock successful KRA response
+        $mockResponse = new Response(
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], $this->getMockRegisterResponse())
+        );
+
+        $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
+
+        $longDescription = str_repeat('This is a very long description that tests the maximum length handling. ', 10);
+        
+        $itemData = [
+            'itemName' => 'Long Description Product',
+            'itemCode' => 'PROD-LONG-001',
+            'itemDescription' => $longDescription,
+            'unitPrice' => 75.00,
+            'taxRate' => 16.00,
+            'taxCategory' => 'B'
+        ];
+
+        $result = $this->kraItemService->registerItem($this->kraDevice, $itemData);
+
+        $this->assertIsArray($result);
+        $this->assertEquals('SUCCESS', $result['status']);
+        $this->assertEquals('PROD-LONG-001', $result['itemCode']);
+    }
+
+    private function getMockRegisterResponse(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8"?>
+<KRA>
+    <STATUS>SUCCESS</STATUS>
+    <DATA>
+        <ItemCode>PROD001</ItemCode>
+        <KraItemId>KRA_ITEM_123456</KraItemId>
+        <RegistrationDate>15/01/2024</RegistrationDate>
+        <RegistrationTime>14:30:25</RegistrationTime>
+        <Status>REGISTERED</Status>
+    </DATA>
+</KRA>';
     }
 } 

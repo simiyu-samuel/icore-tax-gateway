@@ -38,7 +38,7 @@ class ProcessTransactionRequest extends FormRequest
             throw new \Illuminate\Auth\Access\AuthorizationException('KRA Device is not active or initialized.');
         }
 
-        $this->merge(['_kra_device_model' => $kraDevice]);
+        $this->attributes->set('_kra_device_model', $kraDevice);
         return true;
     }
 

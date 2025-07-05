@@ -199,6 +199,7 @@ class KraApi
         <deviceType>VSCU</deviceType>
         <deviceStatus>ACTIVE</deviceStatus>
         <lastSyncTime>20250704120000</lastSyncTime>
+        <SCU_ID>KRACU000000001</SCU_ID>
     </DATA>
 </root>';
     }

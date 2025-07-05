@@ -6,6 +6,7 @@ use Symfony\Component\HttpFoundation\Response;
 use App\Http\Controllers\KraDeviceController;
 use App\Http\Controllers\KraItemController;
 use App\Http\Controllers\KraPurchaseController;
+use App\Http\Controllers\KraInventoryController;
 
 // --- ICORE Tax Gateway API Test Routes (for Phase 1) ---
 
@@ -86,4 +87,9 @@ Route::prefix('v1')->middleware('api')->group(function () {
     // KRA Purchase Management
     Route::post('/purchases', [KraPurchaseController::class, 'sendPurchase']);
     Route::get('/purchases', [KraPurchaseController::class, 'getPurchases']);
+    
+    // KRA Inventory Management
+    Route::post('/inventory', [KraInventoryController::class, 'sendInventoryMovement']);
+    Route::get('/inventory', [KraInventoryController::class, 'getInventoryData']);
+    Route::post('/inventory/movements', [KraInventoryController::class, 'sendMovement']);
 }); 

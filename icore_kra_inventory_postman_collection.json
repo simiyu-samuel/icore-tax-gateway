@@ -1,0 +1,147 @@
+{
+	"info": {
+		"_postman_id": "icore-kra-inventory-collection",
+		"name": "ICORE KRA Inventory API",
+		"description": "Postman collection for testing ICORE Tax Gateway KRA Inventory Management endpoints",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Send Inventory Movement",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-API-Key",
+						"value": "{{api_key}}",
+						"description": "Your API key for authentication"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"gatewayDeviceId\": \"{{device_id}}\",\n  \"taxpayerPin\": \"{{taxpayer_pin}}\",\n  \"branchId\": \"00\",\n  \"itemClassificationCode\": \"3026530000\",\n  \"itemCode\": \"ITEM001\",\n  \"quantity\": 100,\n  \"updateDate\": \"20250705120000\",\n  \"movementType\": \"IN\",\n  \"reason\": \"Stock received from supplier\",\n  \"referenceId\": \"REF001\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/inventory",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"inventory"
+					]
+				},
+				"description": "Send inventory movement data to KRA for stock in/out tracking"
+			},
+			"response": []
+		},
+		{
+			"name": "Get Inventory Data",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "X-API-Key",
+						"value": "{{api_key}}",
+						"description": "Your API key for authentication"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/v1/inventory?gatewayDeviceId={{device_id}}&taxpayerPin={{taxpayer_pin}}&branchId=00",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"inventory"
+					],
+					"query": [
+						{
+							"key": "gatewayDeviceId",
+							"value": "{{device_id}}",
+							"description": "Gateway device ID"
+						},
+						{
+							"key": "taxpayerPin",
+							"value": "{{taxpayer_pin}}",
+							"description": "Taxpayer PIN"
+						},
+						{
+							"key": "branchId",
+							"value": "00",
+							"description": "Optional: Filter by branch ID"
+						},
+						{
+							"key": "itemCode",
+							"value": "ITEM001",
+							"description": "Optional: Filter by item code"
+						},
+						{
+							"key": "startDate",
+							"value": "20250701",
+							"description": "Optional: Filter by start date (YYYYMMDD)"
+						},
+						{
+							"key": "endDate",
+							"value": "20250731",
+							"description": "Optional: Filter by end date (YYYYMMDD)"
+						}
+					]
+				},
+				"description": "Retrieve inventory data from KRA with optional filtering"
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Set default values if not already set",
+					"if (!pm.environment.get('base_url')) {",
+					"    pm.environment.set('base_url', 'http://localhost:8000');",
+					"}",
+					"if (!pm.environment.get('api_key')) {",
+					"    pm.environment.set('api_key', 'your-api-key-here');",
+					"}",
+					"if (!pm.environment.get('device_id')) {",
+					"    pm.environment.set('device_id', 'your-device-id-here');",
+					"}",
+					"if (!pm.environment.get('taxpayer_pin')) {",
+					"    pm.environment.set('taxpayer_pin', 'your-taxpayer-pin-here');",
+					"}"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		},
+		{
+			"key": "api_key",
+			"value": "your-api-key-here",
+			"type": "string"
+		},
+		{
+			"key": "device_id",
+			"value": "your-device-id-here",
+			"type": "string"
+		},
+		{
+			"key": "taxpayer_pin",
+			"value": "your-taxpayer-pin-here",
+			"type": "string"
+		}
+	]
+} 

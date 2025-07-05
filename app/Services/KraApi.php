@@ -188,6 +188,10 @@ class KraApi
                 return $this->getMockSendPurchaseResponse();
             case 'RECV_PURCHASE':
                 return $this->getMockRecvPurchaseResponse();
+            case 'SEND_INVENTORY':
+                return $this->getMockSendInventoryResponse();
+            case 'RECV_INVENTORY':
+                return $this->getMockRecvInventoryResponse();
             default:
                 return $this->getMockGenericResponse($command);
         }
@@ -280,6 +284,52 @@ class KraApi
                 </items>
             </purchase>
         </purchases>
+    </DATA>
+</root>';
+    }
+
+    private function getMockSendInventoryResponse(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <STATUS>P</STATUS>
+    <DATA>
+        <message>Inventory movement data sent successfully</message>
+        <itemCode>ITEM001</itemCode>
+        <branchId>00</branchId>
+        <quantity>100</quantity>
+        <updateDate>' . now()->format('YmdHis') . '</updateDate>
+        <status>SUCCESS</status>
+    </DATA>
+</root>';
+    }
+
+    private function getMockRecvInventoryResponse(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <STATUS>P</STATUS>
+    <DATA>
+        <inventory>
+            <item>
+                <bhfId>00</bhfId>
+                <itemClsCd>3026530000</itemClsCd>
+                <itemCd>ITEM001</itemCd>
+                <itemNm>Sample Product</itemNm>
+                <qty>150</qty>
+                <updDt>20250705120000</updDt>
+                <lastSyncTime>20250705120000</lastSyncTime>
+            </item>
+            <item>
+                <bhfId>01</bhfId>
+                <itemClsCd>3026530001</itemClsCd>
+                <itemCd>ITEM002</itemCd>
+                <itemNm>Another Product</itemNm>
+                <qty>75</qty>
+                <updDt>20250705120000</updDt>
+                <lastSyncTime>20250705120000</lastSyncTime>
+            </item>
+        </inventory>
     </DATA>
 </root>';
     }

@@ -192,6 +192,10 @@ class KraApi
                 return $this->getMockSendInventoryResponse();
             case 'RECV_INVENTORY':
                 return $this->getMockRecvInventoryResponse();
+            case 'SEND_RECEIPT':
+                return $this->getMockSendReceiptResponse();
+            case 'SEND_RECEIPTITEM':
+                return $this->getMockSendReceiptItemResponse();
             default:
                 return $this->getMockGenericResponse($command);
         }
@@ -330,6 +334,36 @@ class KraApi
                 <lastSyncTime>20250705120000</lastSyncTime>
             </item>
         </inventory>
+    </DATA>
+</root>';
+    }
+
+    private function getMockSendReceiptResponse(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <STATUS>P</STATUS>
+    <DATA>
+        <Snumber>KRACU000000001</Snumber>
+        <Date>' . now()->format('d/m/Y') . '</Date>
+        <Time>' . now()->format('H:i:s') . '</Time>
+        <RLabel>NS</RLabel>
+        <TNumber>152</TNumber>
+        <GNumber>1001</GNumber>
+        <Signature>ABC123SIGNATUREXYZ</Signature>
+        <InternalData>INTDATA123456</InternalData>
+    </DATA>
+</root>';
+    }
+
+    private function getMockSendReceiptItemResponse(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <STATUS>P</STATUS>
+    <DATA>
+        <message>Receipt item journaled successfully</message>
+        <status>SUCCESS</status>
     </DATA>
 </root>';
     }

@@ -62,7 +62,7 @@ Route::post('/v1/invoices', function (Request $request) {
 Route::post('/kra/devices/activate', [KraDeviceController::class, 'activate']);
 Route::get('/kra/devices/status', [KraDeviceController::class, 'status']);
 
-Route::prefix('v1')->middleware('api')->group(function () {
+Route::prefix('v1')->group(function () {
     // Test route to verify routing
     Route::get('/test', function () {
         return response()->json(['message' => 'API routing is working!']);

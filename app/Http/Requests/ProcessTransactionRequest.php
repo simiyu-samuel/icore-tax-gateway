@@ -56,20 +56,20 @@ class ProcessTransactionRequest extends FormRequest
 
             'items' => ['required', 'array', 'min:1'],
             'items.*.description' => ['required', 'string', 'max:255'],
-            'items.*.quantity' => ['required', 'numeric', 'min:0.001'],
-            'items.*.unitPrice' => ['required', 'numeric', 'min:0'],
+            'items.*.quantity' => ['required', 'numeric'],
+            'items.*.unitPrice' => ['required', 'numeric'],
             'items.*.taxDesignationCode' => ['required', 'string', 'max:5'],
-            'items.*.discountAmount' => ['nullable', 'numeric', 'min:0'],
+            'items.*.discountAmount' => ['nullable', 'numeric'],
             'items.*.packagingUnitCode' => ['nullable', 'string', 'max:10'],
-            'items.*.packagingQuantity' => ['nullable', 'numeric', 'min:0'],
+            'items.*.packagingQuantity' => ['nullable', 'numeric'],
             'items.*.quantityUnitCode' => ['nullable', 'string', 'max:10'],
-            'items.*.supplierPrice' => ['nullable', 'numeric', 'min:0'],
+            'items.*.supplierPrice' => ['nullable', 'numeric'],
             'items.*.discountRate' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'items.*.taxableAmount' => ['nullable', 'numeric'],
             'items.*.taxAmount' => ['nullable', 'numeric'],
             'items.*.totalAmount' => ['nullable', 'numeric'],
 
-            'totalAmount' => ['required', 'numeric', 'min:0'],
+            'totalAmount' => ['required', 'numeric'],
             'paymentMethod' => ['required', 'string', 'max:50'],
 
             'taxRates' => ['required', 'array'],
@@ -80,18 +80,18 @@ class ProcessTransactionRequest extends FormRequest
             'taxRates.E' => ['nullable', 'numeric', 'min:0', 'max:100'],
 
             'taxableAmounts' => ['required', 'array'],
-            'taxableAmounts.A' => ['nullable', 'numeric', 'min:0'],
-            'taxableAmounts.B' => ['nullable', 'numeric', 'min:0'],
-            'taxableAmounts.C' => ['nullable', 'numeric', 'min:0'],
-            'taxableAmounts.D' => ['nullable', 'numeric', 'min:0'],
-            'taxableAmounts.E' => ['nullable', 'numeric', 'min:0'],
+            'taxableAmounts.A' => ['nullable', 'numeric'],
+            'taxableAmounts.B' => ['nullable', 'numeric'],
+            'taxableAmounts.C' => ['nullable', 'numeric'],
+            'taxableAmounts.D' => ['nullable', 'numeric'],
+            'taxableAmounts.E' => ['nullable', 'numeric'],
 
             'calculatedTaxes' => ['required', 'array'],
-            'calculatedTaxes.A' => ['nullable', 'numeric', 'min:0'],
-            'calculatedTaxes.B' => ['nullable', 'numeric', 'min:0'],
-            'calculatedTaxes.C' => ['nullable', 'numeric', 'min:0'],
-            'calculatedTaxes.D' => ['nullable', 'numeric', 'min:0'],
-            'calculatedTaxes.E' => ['nullable', 'numeric', 'min:0'],
+            'calculatedTaxes.A' => ['nullable', 'numeric'],
+            'calculatedTaxes.B' => ['nullable', 'numeric'],
+            'calculatedTaxes.C' => ['nullable', 'numeric'],
+            'calculatedTaxes.D' => ['nullable', 'numeric'],
+            'calculatedTaxes.E' => ['nullable', 'numeric'],
 
             'originalInvoiceScuId' => ['nullable', 'string', 'max:50', Rule::requiredIf($this->input('transactionType') === 'CREDIT_NOTE')],
             'originalInvoiceInternalReceiptNumber' => ['nullable', 'string', 'max:50', Rule::requiredIf($this->input('transactionType') === 'CREDIT_NOTE')],
@@ -146,8 +146,10 @@ class ProcessTransactionRequest extends FormRequest
 
             if ($this->input('transactionType') === 'CREDIT_NOTE') {
                 foreach ($items as $index => $item) {
-                    if ($item['quantity'] > 0 || ($item['unitPrice'] > 0 && ($item['totalAmount'] ?? 0) > 0)) {
-                        $validator->errors()->add("items.{$index}.quantity", "For credit notes, quantity and amounts must be negative.");
+                    // For credit notes, either quantity should be negative OR unitPrice should be negative
+                    $itemTotal = ($item['quantity'] * $item['unitPrice']) - ($item['discountAmount'] ?? 0);
+                    if ($itemTotal >= 0) {
+                        $validator->errors()->add("items.{$index}.quantity", "For credit notes, the total item amount must be negative (either negative quantity or negative unit price).");
                     }
                 }
                 if ($this->input('totalAmount') > 0) {

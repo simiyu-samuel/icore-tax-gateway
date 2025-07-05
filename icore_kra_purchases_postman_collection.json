@@ -120,22 +120,22 @@
 	"variable": [
 		{
 			"key": "base_url",
-			"value": "http://localhost:8000",
+			"value": "http://icore-tax-gateway.test",
 			"type": "string"
 		},
 		{
 			"key": "api_key",
-			"value": "your-api-key-here",
+			"value": "nO9mZEMMcDNc7MMEueAw6pi465pdJaIAID7ziseG6bHkidDYw0lUJBDp7zbj",
 			"type": "string"
 		},
 		{
 			"key": "device_id",
-			"value": "your-device-id-here",
+			"value": "fd300bb4-a028-40ac-9492-675a461c093b",
 			"type": "string"
 		},
 		{
 			"key": "taxpayer_pin",
-			"value": "your-taxpayer-pin-here",
+			"value": "P123456789Z",
 			"type": "string"
 		}
 	]

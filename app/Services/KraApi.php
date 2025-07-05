@@ -184,6 +184,10 @@ class KraApi
                 return $this->getMockSendItemResponse();
             case 'RECV_ITEM':
                 return $this->getMockRecvItemResponse();
+            case 'SEND_PURCHASE':
+                return $this->getMockSendPurchaseResponse();
+            case 'RECV_PURCHASE':
+                return $this->getMockRecvPurchaseResponse();
             default:
                 return $this->getMockGenericResponse($command);
         }
@@ -231,6 +235,51 @@ class KraApi
         <InitlWhUntpc>100.00</InitlWhUntpc>
         <dfltDlUntpc>120.00</dfltDlUntpc>
         <useYn>Y</useYn>
+    </DATA>
+</root>';
+    }
+
+    private function getMockSendPurchaseResponse(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <STATUS>P</STATUS>
+    <DATA>
+        <message>Purchase data sent successfully</message>
+        <invoiceId>INV' . date('YmdHis') . '</invoiceId>
+        <registrationDate>' . now()->format('YmdHis') . '</registrationDate>
+        <status>SUCCESS</status>
+    </DATA>
+</root>';
+    }
+
+    private function getMockRecvPurchaseResponse(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <STATUS>P</STATUS>
+    <DATA>
+        <purchases>
+            <purchase>
+                <invoiceId>INV20250704120000</invoiceId>
+                <invoiceDate>20250704</invoiceDate>
+                <customerName>John Doe</customerName>
+                <customerPin>A123456789B</customerPin>
+                <totalAmount>1500.00</totalAmount>
+                <taxAmount>225.00</taxAmount>
+                <items>
+                    <item>
+                        <itemCode>ITEM001</itemCode>
+                        <itemName>Sample Product</itemName>
+                        <quantity>2</quantity>
+                        <unitPrice>750.00</unitPrice>
+                        <totalPrice>1500.00</totalPrice>
+                        <taxRate>15.00</taxRate>
+                        <taxAmount>225.00</taxAmount>
+                    </item>
+                </items>
+            </purchase>
+        </purchases>
     </DATA>
 </root>';
     }

@@ -8,6 +8,7 @@ use App\Http\Controllers\KraItemController;
 use App\Http\Controllers\KraPurchaseController;
 use App\Http\Controllers\KraInventoryController;
 use App\Http\Controllers\KraSalesController;
+use App\Http\Controllers\KraReportController; // Import this
 
 // --- ICORE Tax Gateway API Test Routes (for Phase 1) ---
 
@@ -96,4 +97,9 @@ Route::prefix('v1')->middleware('api')->group(function () {
     
     // KRA Sales Transaction Processing (Core)
     Route::post('/transactions', [KraSalesController::class, 'process']);
+    
+    // KRA Report Management
+    Route::get('/reports/x-daily', [KraReportController::class, 'getXDailyReport']);
+    Route::post('/reports/z-daily', [KraReportController::class, 'generateZDailyReport']); // POST as it's an action/generates
+    Route::get('/reports/plu', [KraReportController::class, 'getPLUReport']);
 }); 

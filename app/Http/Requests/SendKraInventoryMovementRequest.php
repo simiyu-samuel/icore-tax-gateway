@@ -18,6 +18,10 @@ class SendKraInventoryMovementRequest extends FormRequest
         $apiClient = $this->attributes->get('api_client');
 
         if (!$apiClient || !$apiClient->is_active) {
+            logger()->error("API client is null or inactive", [
+                'api_client' => $apiClient ? $apiClient->id : null,
+                'trace_id' => $this->attributes->get('traceId')
+            ]);
             return false;
         }
 
@@ -32,14 +36,28 @@ class SendKraInventoryMovementRequest extends FormRequest
 
         $allowedPins = explode(',', $apiClient->allowed_taxpayer_pins);
         if (!in_array($taxpayerPin, $allowedPins)) {
+            logger()->error("Taxpayer PIN not allowed for this API client", [
+                'taxpayerPin' => $taxpayerPin,
+                'allowedPins' => $allowedPins,
+                'trace_id' => $this->attributes->get('traceId')
+            ]);
             return false;
         }
 
         if (!$kraDevice) {
+            logger()->error("KraDevice not found", [
+                'gatewayDeviceId' => $gatewayDeviceId,
+                'taxpayerPin' => $taxpayerPin,
+                'trace_id' => $this->attributes->get('traceId')
+            ]);
             return false;
         }
 
-        $this->merge(['_kra_device_model' => $kraDevice]);
+        $this->attributes->set('_kra_device_model', $kraDevice);
+        logger()->info("KraDevice model attached successfully", [
+            'deviceId' => $kraDevice->id,
+            'trace_id' => $this->attributes->get('traceId')
+        ]);
         return true;
     }
 

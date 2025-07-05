@@ -57,6 +57,19 @@ class KraInventoryController extends Controller
         /** @var KraDevice $_kraDeviceModel */
         $_kraDeviceModel = $request->attributes->get('_kra_device_model'); // Access merged model
 
+        // Debug: Check if device model is null
+        if ($_kraDeviceModel === null) {
+            logger()->error("KraDevice model is null in sendMovement", [
+                'gatewayDeviceId' => $request->input('gatewayDeviceId'),
+                'taxpayerPin' => $request->input('taxpayerPin'),
+                'trace_id' => $request->attributes->get('traceId')
+            ]);
+            return response()->json([
+                'message' => 'Device validation failed. Please check your gateway device ID and taxpayer PIN.',
+                'error' => 'DEVICE_NOT_FOUND'
+            ], 400);
+        }
+
         $inventoryData = $request->validated();
 
         try {

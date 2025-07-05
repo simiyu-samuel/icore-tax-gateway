@@ -26,7 +26,8 @@ class TaxpayerPinFactory extends Factory
     {
         return [
             'pin' => 'A' . $this->faker->numberBetween(100000000, 999999999) . 'B',
-            'business_name' => $this->faker->company(),
+            'name' => $this->faker->company(),
+            'address' => $this->faker->address(),
             'is_active' => true,
         ];
     }

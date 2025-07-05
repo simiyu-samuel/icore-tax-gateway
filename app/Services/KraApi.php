@@ -177,6 +177,22 @@ class KraApi
      */
     private function generateMockResponse(string $command, SimpleXMLElement $xmlPayload): string
     {
+        // Use KraMockServerService for report commands
+        if (in_array($command, ['X_REPORT', 'Z_REPORT', 'PLU_REPORT'])) {
+            $mockServer = new KraMockServerService();
+            $pin = (string) ($xmlPayload->PIN ?? '');
+            
+            // Extract data payload for PLU_REPORT
+            $dataPayload = [];
+            if ($command === 'PLU_REPORT' && isset($xmlPayload->DATA)) {
+                foreach ($xmlPayload->DATA->children() as $child) {
+                    $dataPayload[(string) $child->getName()] = (string) $child;
+                }
+            }
+            
+            return $mockServer->processCommand($command, $pin, $dataPayload);
+        }
+        
         switch ($command) {
             case 'selectInitOsdcInfo':
                 return $this->getMockInitResponse();

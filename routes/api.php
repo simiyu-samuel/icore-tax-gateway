@@ -102,4 +102,10 @@ Route::prefix('v1')->middleware('api')->group(function () {
     Route::get('/reports/x-daily', [KraReportController::class, 'getXDailyReport']);
     Route::post('/reports/z-daily', [KraReportController::class, 'generateZDailyReport']); // POST as it's an action/generates
     Route::get('/reports/plu', [KraReportController::class, 'getPLUReport']);
+});
+
+// Mock Server Routes (for testing)
+Route::prefix('mock')->group(function () {
+    Route::post('/kra', [App\Http\Controllers\MockServerController::class, 'handleKraRequest']);
+    Route::get('/health', [App\Http\Controllers\MockServerController::class, 'health']);
 }); 

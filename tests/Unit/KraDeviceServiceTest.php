@@ -49,7 +49,6 @@ class KraDeviceServiceTest extends TestCase
 
     public function test_initialize_device_success()
     {
-        // Mock successful KRA response
         $mockResponse = new Response(
             new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], $this->getMockInitializeResponse())
         );
@@ -57,27 +56,22 @@ class KraDeviceServiceTest extends TestCase
         $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
 
         $deviceData = [
-            'deviceType' => 'OSCU',
-            'deviceSerialNumber' => 'DEVICE123456',
-            'deviceModel' => 'Model X',
-            'deviceManufacturer' => 'Manufacturer Y'
+            'taxpayerPin' => 'A123456789B',
+            'branchOfficeId' => 'BR001',
+            'deviceType' => 'OSCU'
         ];
 
-        $result = $this->kraDeviceService->initializeDevice($this->taxpayerPin, $deviceData);
+        $result = $this->kraDeviceService->initializeDevice($deviceData);
 
         $this->assertInstanceOf(KraDevice::class, $result);
         $this->assertEquals($this->taxpayerPin->id, $result->taxpayer_pin_id);
-        $this->assertEquals('DEVICE123456', $result->device_serial_number);
-        $this->assertEquals('Model X', $result->device_model);
-        $this->assertEquals('Manufacturer Y', $result->device_manufacturer);
+        $this->assertEquals('KRACU0100000001', $result->kra_scu_id);
         $this->assertEquals('OSCU', $result->device_type);
-        $this->assertEquals('INITIALIZED', $result->status);
-        $this->assertNotEmpty($result->kra_scu_id);
+        $this->assertEquals('ACTIVATED', $result->status);
     }
 
     public function test_initialize_device_vscu_type()
     {
-        // Mock successful KRA response
         $mockResponse = new Response(
             new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], $this->getMockInitializeResponse())
         );
@@ -85,20 +79,16 @@ class KraDeviceServiceTest extends TestCase
         $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
 
         $deviceData = [
-            'deviceType' => 'VSCU',
-            'deviceSerialNumber' => 'VSCU123456',
-            'deviceModel' => 'VSCU Model',
-            'deviceManufacturer' => 'VSCU Manufacturer',
-            'vscuJarUrl' => 'http://vscu.local:8080'
+            'taxpayerPin' => 'A123456789B',
+            'branchOfficeId' => 'BR001',
+            'deviceType' => 'VSCU'
         ];
 
-        $result = $this->kraDeviceService->initializeDevice($this->taxpayerPin, $deviceData);
+        $result = $this->kraDeviceService->initializeDevice($deviceData);
 
         $this->assertInstanceOf(KraDevice::class, $result);
         $this->assertEquals('VSCU', $result->device_type);
-        $this->assertEquals('VSCU123456', $result->device_serial_number);
-        $this->assertArrayHasKey('vscu_jar_url', $result->config);
-        $this->assertEquals('http://vscu.local:8080', $result->config['vscu_jar_url']);
+        $this->assertEquals('KRACU0100000001', $result->kra_scu_id);
     }
 
     public function test_initialize_device_kra_api_exception()
@@ -106,127 +96,84 @@ class KraDeviceServiceTest extends TestCase
         $this->kraApiMock->shouldReceive('sendCommand')->andThrow(new KraApiException('Device initialization failed', 'INIT_ERROR', 'Error response'));
 
         $deviceData = [
-            'deviceType' => 'OSCU',
-            'deviceSerialNumber' => 'DEVICE123456',
-            'deviceModel' => 'Model X',
-            'deviceManufacturer' => 'Manufacturer Y'
+            'taxpayerPin' => 'A123456789B',
+            'branchOfficeId' => 'BR001',
+            'deviceType' => 'OSCU'
         ];
 
         $this->expectException(KraApiException::class);
         $this->expectExceptionMessage('Device initialization failed');
 
-        $this->kraDeviceService->initializeDevice($this->taxpayerPin, $deviceData);
+        $this->kraDeviceService->initializeDevice($deviceData);
     }
 
-    public function test_initialize_device_invalid_device_type()
+    public function test_initialize_device_invalid_taxpayer_pin()
     {
         $deviceData = [
-            'deviceType' => 'INVALID_TYPE',
-            'deviceSerialNumber' => 'DEVICE123456',
-            'deviceModel' => 'Model X',
-            'deviceManufacturer' => 'Manufacturer Y'
-        ];
-
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid device type: INVALID_TYPE');
-
-        $this->kraDeviceService->initializeDevice($this->taxpayerPin, $deviceData);
-    }
-
-    public function test_initialize_device_missing_required_fields()
-    {
-        $deviceData = [
+            'taxpayerPin' => 'INVALID_PIN',
+            'branchOfficeId' => 'BR001',
             'deviceType' => 'OSCU'
-            // Missing required fields
         ];
 
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Device serial number is required');
+        $this->expectException(\Illuminate\Database\Eloquent\ModelNotFoundException::class);
 
-        $this->kraDeviceService->initializeDevice($this->taxpayerPin, $deviceData);
+        $this->kraDeviceService->initializeDevice($deviceData);
     }
 
-    public function test_activate_device_success()
+    public function test_get_device_status_success()
     {
-        // Create an initialized device
-        $device = KraDevice::factory()->for($this->taxpayerPin)->create([
-            'status' => 'INITIALIZED',
-            'device_type' => 'OSCU',
-            'kra_scu_id' => 'KRACU0100000001'
+        $kraDevice = KraDevice::factory()->for($this->taxpayerPin)->create([
+            'kra_scu_id' => 'KRACU0100000001',
+            'status' => 'ACTIVATED',
+            'device_type' => 'OSCU'
         ]);
 
-        // Mock successful KRA response
         $mockResponse = new Response(
-            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], $this->getMockActivateResponse())
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], $this->getMockStatusResponse())
         );
 
         $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
 
-        $result = $this->kraDeviceService->activateDevice($device);
+        $result = $this->kraDeviceService->getDeviceStatus($kraDevice);
 
-        $this->assertInstanceOf(KraDevice::class, $result);
-        $this->assertEquals('ACTIVATED', $result->status);
-        $this->assertNotNull($result->activated_at);
+        $this->assertIsArray($result);
+        $this->assertEquals('KRACU0100000001', $result['kraScuId']);
+        $this->assertEquals('OPERATIONAL', $result['operationalStatus']);
+        $this->assertEquals('1.2.3', $result['firmwareVersion']);
+        $this->assertEquals('HW001', $result['hardwareRevision']);
+        $this->assertEquals(5, $result['currentZReportCount']);
     }
 
-    public function test_activate_device_already_activated()
+    public function test_get_device_status_vscu_device()
     {
-        // Create an already activated device
-        $device = KraDevice::factory()->for($this->taxpayerPin)->create([
+        $vscuDevice = KraDevice::factory()->for($this->taxpayerPin)->create([
+            'kra_scu_id' => 'KRACU0100000002',
             'status' => 'ACTIVATED',
-            'device_type' => 'OSCU',
-            'kra_scu_id' => 'KRACU0100000001'
+            'device_type' => 'VSCU',
+            'config' => ['vscu_jar_url' => 'http://vscu.local:8080']
         ]);
 
-        $result = $this->kraDeviceService->activateDevice($device);
+        $mockResponse = new Response(
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], $this->getMockStatusResponse())
+        );
 
-        $this->assertInstanceOf(KraDevice::class, $result);
-        $this->assertEquals('ACTIVATED', $result->status);
-        // Should not change activation time since already activated
+        $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
+
+        $result = $this->kraDeviceService->getDeviceStatus($vscuDevice);
+
+        $this->assertIsArray($result);
+        $this->assertEquals('KRACU0100000002', $result['kraScuId']);
+        $this->assertEquals('OPERATIONAL', $result['operationalStatus']);
     }
 
-    public function test_activate_device_not_initialized()
+    public function test_get_device_status_missing_data_node()
     {
-        // Create a device that's not initialized
-        $device = KraDevice::factory()->for($this->taxpayerPin)->create([
-            'status' => 'PENDING',
-            'device_type' => 'OSCU',
-            'kra_scu_id' => 'KRACU0100000001'
+        $kraDevice = KraDevice::factory()->for($this->taxpayerPin)->create([
+            'kra_scu_id' => 'KRACU0100000001',
+            'status' => 'ACTIVATED',
+            'device_type' => 'OSCU'
         ]);
 
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Device must be initialized before activation');
-
-        $this->kraDeviceService->activateDevice($device);
-    }
-
-    public function test_activate_device_kra_api_exception()
-    {
-        // Create an initialized device
-        $device = KraDevice::factory()->for($this->taxpayerPin)->create([
-            'status' => 'INITIALIZED',
-            'device_type' => 'OSCU',
-            'kra_scu_id' => 'KRACU0100000001'
-        ]);
-
-        $this->kraApiMock->shouldReceive('sendCommand')->andThrow(new KraApiException('Device activation failed', 'ACTIVATE_ERROR', 'Error response'));
-
-        $this->expectException(KraApiException::class);
-        $this->expectExceptionMessage('Device activation failed');
-
-        $this->kraDeviceService->activateDevice($device);
-    }
-
-    public function test_activate_device_missing_data_node()
-    {
-        // Create an initialized device
-        $device = KraDevice::factory()->for($this->taxpayerPin)->create([
-            'status' => 'INITIALIZED',
-            'device_type' => 'OSCU',
-            'kra_scu_id' => 'KRACU0100000001'
-        ]);
-
-        // Mock KRA response without DATA node
         $mockResponse = new Response(
             new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], '<KRA><STATUS>ERROR</STATUS></KRA>')
         );
@@ -234,37 +181,25 @@ class KraDeviceServiceTest extends TestCase
         $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
 
         $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('Missing DATA node in KRA response');
+        $this->expectExceptionMessage('KRA status response missing DATA node');
 
-        $this->kraDeviceService->activateDevice($device);
+        $this->kraDeviceService->getDeviceStatus($kraDevice);
     }
 
-    public function test_initialize_device_with_config()
+    public function test_get_device_status_kra_api_exception()
     {
-        // Mock successful KRA response
-        $mockResponse = new Response(
-            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], $this->getMockInitializeResponse())
-        );
+        $kraDevice = KraDevice::factory()->for($this->taxpayerPin)->create([
+            'kra_scu_id' => 'KRACU0100000001',
+            'status' => 'ACTIVATED',
+            'device_type' => 'OSCU'
+        ]);
 
-        $this->kraApiMock->shouldReceive('sendCommand')->andReturn($mockResponse);
+        $this->kraApiMock->shouldReceive('sendCommand')->andThrow(new KraApiException('Device not found', 'DEVICE_NOT_FOUND', 'Error response'));
 
-        $deviceData = [
-            'deviceType' => 'OSCU',
-            'deviceSerialNumber' => 'DEVICE123456',
-            'deviceModel' => 'Model X',
-            'deviceManufacturer' => 'Manufacturer Y',
-            'config' => [
-                'custom_setting' => 'value',
-                'timeout' => 30
-            ]
-        ];
+        $this->expectException(KraApiException::class);
+        $this->expectExceptionMessage('Device not found');
 
-        $result = $this->kraDeviceService->initializeDevice($this->taxpayerPin, $deviceData);
-
-        $this->assertInstanceOf(KraDevice::class, $result);
-        $this->assertArrayHasKey('custom_setting', $result->config);
-        $this->assertEquals('value', $result->config['custom_setting']);
-        $this->assertEquals(30, $result->config['timeout']);
+        $this->kraDeviceService->getDeviceStatus($kraDevice);
     }
 
     private function getMockInitializeResponse(): string
@@ -273,24 +208,27 @@ class KraDeviceServiceTest extends TestCase
 <KRA>
     <STATUS>SUCCESS</STATUS>
     <DATA>
-        <Snumber>KRACU0100000001</Snumber>
+        <SCU_ID>KRACU0100000001</SCU_ID>
         <Date>15/01/2024</Date>
         <Time>14:30:25</Time>
-        <DeviceStatus>INITIALIZED</DeviceStatus>
+        <DeviceStatus>ACTIVATED</DeviceStatus>
     </DATA>
 </KRA>';
     }
 
-    private function getMockActivateResponse(): string
+    private function getMockStatusResponse(): string
     {
         return '<?xml version="1.0" encoding="UTF-8"?>
 <KRA>
-    <STATUS>SUCCESS</STATUS>
+    <STATUS>P</STATUS>
     <DATA>
         <Snumber>KRACU0100000001</Snumber>
-        <Date>15/01/2024</Date>
-        <Time>14:30:25</Time>
-        <DeviceStatus>ACTIVATED</DeviceStatus>
+        <FWver>1.2.3</FWver>
+        <HWrev>HW001</HWrev>
+        <CurrentZ>5</CurrentZ>
+        <LastRemoteDate>15/01/2024</LastRemoteDate>
+        <LastLocalDate>14/01/2024</LastLocalDate>
+        <ErrorCode></ErrorCode>
     </DATA>
 </KRA>';
     }

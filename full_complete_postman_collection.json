@@ -1,0 +1,512 @@
+{
+	"info": {
+		"_postman_id": "c88f117a-9669-42c2-841f-84610c1c1f7b",
+		"name": "ICORE Tax Gateway - All Functionality",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://icore-tax-gateway.test",
+			"type": "string",
+			"description": "Base URL for the ICORE Tax Gateway API (your Laragon URL)"
+		},
+		{
+			"key": "apiKey",
+			"value": "YOUR_API_KEY_FROM_TINKER",
+			"type": "string",
+			"description": "API Key generated for your ApiClient in Tinker"
+		},
+		{
+			"key": "taxpayerPin",
+			"value": "P123456789Z",
+			"type": "string",
+			"description": "Test Taxpayer KRA PIN"
+		},
+		{
+			"key": "branchOfficeId",
+			"value": "00",
+			"type": "string",
+			"description": "Test Branch Office ID for KRA device initialization"
+		},
+		{
+			"key": "gatewayDeviceId",
+			"value": "AutomaticallySetAfterInitialize",
+			"type": "string",
+			"description": "This will be set by the 'Initialize KRA Device' request"
+		}
+	],
+	"item": [
+		{
+			"name": "Phase 2.1: Device Management",
+			"item": [
+				{
+					"name": "Initialize KRA Device (POST)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData && jsonData.gatewayDeviceId) {",
+									"    pm.environment.set(\"gatewayDeviceId\", jsonData.gatewayDeviceId);",
+									"    console.log(\"gatewayDeviceId set to: \" + jsonData.gatewayDeviceId);",
+									"    pm.test(\"Initialization successful\", function () {",
+									"        pm.expect(pm.response.status).to.eql(200);",
+									"        pm.expect(jsonData.message).to.include(\"initialized successfully\");",
+									"        pm.expect(jsonData.gatewayDeviceId).to.be.a('string');",
+									"        pm.expect(jsonData.kraScuId).to.be.a('string');",
+									"    });",
+									"} else {",
+									"    console.log(\"gatewayDeviceId not found in response, or response is not JSON.\");",
+									"    pm.test(\"Initialization failed - no device ID in response\", function() {",
+									"        pm.expect(true).to.be.false; // Force test failure",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"taxpayerPin\": \"{{taxpayerPin}}\",\n    \"branchOfficeId\": \"{{branchOfficeId}}\",\n    \"deviceType\": \"VSCU\" // Change to OSCU if you want to test OSCU\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/devices/initialize",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"devices",
+								"initialize"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get KRA Device Status (GET)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Status retrieval successful\", function () {",
+									"    pm.expect(pm.response.status).to.eql(200);",
+									"    pm.expect(jsonData.message).to.include(\"status retrieved successfully\");",
+									"    pm.expect(jsonData.operationalStatus).to.be.oneOf([\"OPERATIONAL\", \"ERROR\"]);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/devices/{{gatewayDeviceId}}/status",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"devices",
+								"{{gatewayDeviceId}}",
+								"status"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Phase 2.2: Item Management",
+			"item": [
+				{
+					"name": "Register/Update Item (POST)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"gatewayDeviceId\": \"{{gatewayDeviceId}}\",\n    \"taxpayerPin\": \"{{taxpayerPin}}\",\n    \"itemCode\": \"ITEM-{{$randomInt}}\",\n    \"itemClassificationCode\": \"3026530000\",\n    \"itemName\": \"Sample Item {{($randomInt)}}\",\n    \"itemTypeCode\": \"2\",\n    \"originCountryCode\": \"KE\",\n    \"packagingUnitCode\": \"PC\",\n    \"quantityUnitCode\": \"PC\",\n    \"additionalInfo\": \"Test Item\",\n    \"initialWholesaleUnitPrice\": 100.00,\n    \"initialQuantity\": 100,\n    \"defaultSellingUnitPrice\": 120.00,\n    \"taxType\": \"B\",\n    \"remark\": \"New product launch\",\n    \"inUse\": true,\n    \"registerUserId\": \"Admin\",\n    \"registerDate\": \"{{$timestamp}}\",\n    \"safetyQuantity\": 10,\n    \"useBarcode\": true,\n    \"changeAllowed\": true,\n    \"useAdditionalInfoAllowed\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/items",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"items"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Item List (GET)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/items?gatewayDeviceId={{gatewayDeviceId}}&taxpayerPin={{taxpayerPin}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"items"
+							],
+							"query": [
+								{
+									"key": "gatewayDeviceId",
+									"value": "{{gatewayDeviceId}}"
+								},
+								{
+									"key": "taxpayerPin",
+									"value": "{{taxpayerPin}}"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Phase 2.3: Purchase Management",
+			"item": [
+				{
+					"name": "Send Purchase (POST)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"gatewayDeviceId\": \"{{gatewayDeviceId}}\",\n    \"taxpayerPin\": \"{{taxpayerPin}}\",\n    \"invoiceId\": \"PURCH-{{$randomInt}}\",\n    \"branchId\": \"00\",\n    \"supplierPin\": \"S123456789A\",\n    \"supplierName\": \"Supplier Alpha\",\n    \"supplierCuId\": \"SUPPLIER_CU_001\",\n    \"registrationTypeCode\": \"M\",\n    \"referenceId\": \"SUP_INV_{{$randomInt}}\",\n    \"paymentTypeCode\": \"01\",\n    \"invoiceStatusCode\": \"02\",\n    \"transactionDate\": \"{{$isoTimestamp}}\".substring(0,8),\n    \"validDate\": \"{{$isoTimestamp}}\".substring(0,8),\n    \"totalTaxableAmountB\": 630000.00,\n    \"totalTax\": 96101.70,\n    \"totalSupplierPrice\": 630000.00,\n    \"totalAmount\": 630000.00,\n    \"remark\": \"Bulk purchase of goods\",\n    \"registerUserId\": \"Gateway\",\n    \"registerDate\": \"{{$timestamp}}\",\n    \"items\": [\n        {\n            \"sequence\": 1,\n            \"itemClassificationCode\": \"3026530000\",\n            \"itemCode\": \"KE2BEXUXXX0000002\",\n            \"itemName\": \"Bar 10 mm\",\n            \"supplierItemClassificationCode\": \"3026530000\",\n            \"supplierItemCode\": \"17350053850030\",\n            \"supplierItemName\": \"10 mm Bar\",\n            \"packagingUnitCode\": \"BE\",\n            \"packagingQuantity\": 10,\n            \"quantityUnitCode\": \"U\",\n            \"quantity\": 150,\n            \"expiryDate\": \"20260801\",\n            \"unitPrice\": 4200.00,\n            \"supplierPrice\": 630000.00,\n            \"discountRate\": 0.00,\n            \"discountAmount\": 0.00,\n            \"taxableAmount\": 630000.00,\n            \"taxType\": \"B\",\n            \"taxAmount\": 96101.70\n        }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/purchases",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"purchases"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Purchases (GET)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/purchases?gatewayDeviceId={{gatewayDeviceId}}&taxpayerPin={{taxpayerPin}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"purchases"
+							],
+							"query": [
+								{
+									"key": "gatewayDeviceId",
+									"value": "{{gatewayDeviceId}}"
+								},
+								{
+									"key": "taxpayerPin",
+									"value": "{{taxpayerPin}}"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Phase 2.4: Inventory Management",
+			"item": [
+				{
+					"name": "Send Inventory Movement (POST)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"gatewayDeviceId\": \"{{gatewayDeviceId}}\",\n    \"taxpayerPin\": \"{{taxpayerPin}}\",\n    \"branchId\": \"00\",\n    \"itemClassificationCode\": \"3026530000\",\n    \"itemCode\": \"KE2BEXUXXX0000001\",\n    \"quantity\": 50, \n    \"updateDate\": \"{{$timestamp}}\" \n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/inventory/movements",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"inventory",
+								"movements"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Phase 3.1: Sales & Credit Note Transaction Processing",
+			"item": [
+				{
+					"name": "Process Sales Transaction (POST)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"gatewayDeviceId\": \"{{gatewayDeviceId}}\",\n    \"taxpayerPin\": \"{{taxpayerPin}}\",\n    \"receiptType\": \"NORMAL\",\n    \"transactionType\": \"SALE\",\n    \"internalReceiptNumber\": \"POS_INV_{{$randomInt}}\", // Make this unique per test\n    \"buyerPin\": null,\n    \"saleLocationAddress\": \"123 Main Street, Nairobi\",\n    \"items\": [\n        {\n            \"description\": \"Item A (Taxable 16%)\",\n            \"quantity\": 2.0,\n            \"unitPrice\": 500.00,\n            \"taxDesignationCode\": \"B\", // Corresponds to TaxRateB (16%)\n            \"discountAmount\": 0.00,\n            \"packagingUnitCode\": \"PC\",\n            \"packagingQuantity\": 2,\n            \"quantityUnitCode\": \"PC\",\n            \"supplierPrice\": 1000.00,\n            \"discountRate\": 0,\n            \"taxableAmount\": 1000.00,\n            \"taxAmount\": 160.00,\n            \"totalAmount\": 1160.00\n        },\n        {\n            \"description\": \"Item B (Exempt)\",\n            \"quantity\": 1.0,\n            \"unitPrice\": 200.00,\n            \"taxDesignationCode\": \"A\", // Corresponds to TaxRateA (0% for Exempt)\n            \"discountAmount\": 0.00,\n            \"packagingUnitCode\": \"PC\",\n            \"packagingQuantity\": 1,\n            \"quantityUnitCode\": \"PC\",\n            \"supplierPrice\": 200.00,\n            \"discountRate\": 0,\n            \"taxableAmount\": 200.00,\n            \"taxAmount\": 0.00,\n            \"totalAmount\": 200.00\n        }\n    ],\n    \"totalAmount\": 1360.00, // Total (1000+200 + 160 tax)\n    \"paymentMethod\": \"CASH\",\n    \"taxRates\": {\n        \"A\": 0.00,\n        \"B\": 16.00,\n        \"C\": 0.00,\n        \"D\": 0.00,\n        \"E\": 0.00\n    },\n    \"taxableAmounts\": {\n        \"A\": 200.00,\n        \"B\": 1000.00,\n        \"C\": 0.00,\n        \"D\": 0.00,\n        \"E\": 0.00\n    },\n    \"calculatedTaxes\": {\n        \"A\": 0.00,\n        \"B\": 160.00,\n        \"C\": 0.00,\n        \"D\": 0.00,\n        \"E\": 0.00\n    }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/transactions",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"transactions"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Process Credit Note Transaction (POST)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"gatewayDeviceId\": \"{{gatewayDeviceId}}\",\n    \"taxpayerPin\": \"{{taxpayerPin}}\",\n    \"receiptType\": \"NORMAL\",\n    \"transactionType\": \"CREDIT_NOTE\",\n    \"internalReceiptNumber\": \"POS_CN_{{$randomInt}}\", // Unique for credit note\n    \"buyerPin\": null,\n    \"saleLocationAddress\": \"123 Main Street, Nairobi\",\n    \"originalInvoiceScuId\": \"KRACU0100000001\", // Dummy SCU ID of the original invoice (replace if you have a real one)\n    \"originalInvoiceInternalReceiptNumber\": \"POS_INV_ABCXYZ\", // Internal receipt number of a prior original invoice (replace if you have a real one)\n    \"creditNoteReason\": \"Customer return of faulty item\",\n    \"items\": [\n        {\n            \"description\": \"Returned Item (Taxable 16%)\",\n            \"quantity\": 1.0, \n            \"unitPrice\": -500.00, \n            \"taxDesignationCode\": \"B\",\n            \"discountAmount\": 0.00,\n            \"packagingUnitCode\": \"PC\",\n            \"packagingQuantity\": 1,\n            \"quantityUnitCode\": \"PC\",\n            \"supplierPrice\": -500.00,\n            \"discountRate\": 0,\n            \"taxableAmount\": -500.00,\n            \"taxAmount\": -80.00,\n            \"totalAmount\": -580.00\n        }\n    ],\n    \"totalAmount\": -580.00,\n    \"paymentMethod\": \"CASH\",\n    \"taxRates\": {\n        \"A\": 0.00,\n        \"B\": 16.00,\n        \"C\": 0.00,\n        \"D\": 0.00,\n        \"E\": 0.00\n    },\n    \"taxableAmounts\": {\n        \"A\": 0.00,\n        \"B\": -500.00,\n        \"C\": 0.00,\n        \"D\": 0.00,\n        \"E\": 0.00\n    },\n    \"calculatedTaxes\": {\n        \"A\": 0.00,\n        \"B\": -80.00,\n        \"C\": 0.00,\n        \"D\": 0.00,\n        \"E\": 0.00\n    }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/transactions",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"transactions"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Phase 3.2: Report Management",
+			"item": [
+				{
+					"name": "Get X Daily Report (GET)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/reports/x-daily?gatewayDeviceId={{gatewayDeviceId}}&taxpayerPin={{taxpayerPin}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"reports",
+								"x-daily"
+							],
+							"query": [
+								{
+									"key": "gatewayDeviceId",
+									"value": "{{gatewayDeviceId}}"
+								},
+								{
+									"key": "taxpayerPin",
+									"value": "{{taxpayerPin}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Generate Z Daily Report (POST)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"gatewayDeviceId\": \"{{gatewayDeviceId}}\",\n    \"taxpayerPin\": \"{{taxpayerPin}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/reports/z-daily",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"reports",
+								"z-daily"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get PLU Report (GET)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/reports/plu?gatewayDeviceId={{gatewayDeviceId}}&taxpayerPin={{taxpayerPin}}&startDate=2025-01-01&endDate=2025-01-31",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"reports",
+								"plu"
+							],
+							"query": [
+								{
+									"key": "gatewayDeviceId",
+									"value": "{{gatewayDeviceId}}"
+								},
+								{
+									"key": "taxpayerPin",
+									"value": "{{taxpayerPin}}"
+								},
+								{
+									"key": "startDate",
+									"value": "2025-01-01"
+								},
+								{
+									"key": "endDate",
+									"value": "2025-01-31"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

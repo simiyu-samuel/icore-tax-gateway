@@ -84,6 +84,13 @@ Route::prefix('v1')->group(function () {
     
     // KRA Item Management
     Route::post('/items', [KraItemController::class, 'registerItem']);
+    // Route::post('/items', function (Request $request) {
+    //     return response()->json([
+    //         'message' => 'DEBUG: POST /api/v1/items caught by temporary route!',
+    //         'data_received' => $request->all(),
+    //         'headers' => $request->headers->all()
+    //     ]);
+    // });
     Route::get('/items', [KraItemController::class, 'getItems']);
     
     // KRA Purchase Management

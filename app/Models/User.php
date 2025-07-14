@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Models;
+use App\Models\TaxpayerPin;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -44,5 +45,13 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function taxpayerPins()
+    {
+        // This defines a many-to-many relationship.
+        // Laravel automatically assumes the pivot table is 'taxpayer_pin_user'
+        // and foreign keys are 'user_id' and 'taxpayer_pin_id' based on naming conventions.
+        return $this->belongsToMany(TaxpayerPin::class);
     }
 }

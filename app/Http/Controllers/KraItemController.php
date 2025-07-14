@@ -20,6 +20,12 @@ class KraItemController extends Controller
 
     public function registerItem(RegisterKraItemRequest $request): JsonResponse
     {
+        return response()->json([
+            'message' => 'POST /items route hit successfully!',
+            'data' => $request->all(),
+            'method' => $request->method()
+        ]);
+        
         $_kraDeviceModel = $request->attributes->get('_kra_device_model');
         $itemData = $request->validated();
         try {

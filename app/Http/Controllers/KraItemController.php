@@ -20,6 +20,7 @@ class KraItemController extends Controller
 
     public function registerItem(RegisterKraItemRequest $request): JsonResponse
     {
+        $undefinedVariable->someMethod();
         return response()->json([
             'message' => 'POST /items route hit successfully!',
             'data' => $request->all(),

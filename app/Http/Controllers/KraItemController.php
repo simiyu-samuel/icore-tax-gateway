@@ -19,8 +19,7 @@ class KraItemController extends Controller
     }
 
     public function registerItem(RegisterKraItemRequest $request): JsonResponse
-    {
-        
+    {        
         $_kraDeviceModel = $request->attributes->get('_kra_device_model');
         //print ($_kraDeviceModel); correctly to debug
         if (!$_kraDeviceModel instanceof KraDevice) {

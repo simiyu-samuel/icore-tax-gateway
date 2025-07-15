@@ -64,7 +64,7 @@ class RegisterKraItemRequest extends FormRequest
         }
 
         // Store the KraDevice model for easy access in the controller/service
-        $this->merge(['_kra_device_model' => $kraDevice]);
+        $this->attributes->set('_kra_device_model', $kraDevice);
 
         Log::info("Authorize check PASSED for RegisterKraItemRequest (Trace ID: {$traceId})");
         return true;

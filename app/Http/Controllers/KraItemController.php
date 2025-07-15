@@ -20,15 +20,27 @@ class KraItemController extends Controller
 
     public function registerItem(RegisterKraItemRequest $request): JsonResponse
     {
+<<<<<<< HEAD
         $undefinedVariable->someMethod();
         return response()->json([
             'message' => 'POST /items route hit successfully!',
             'data' => $request->all(),
             'method' => $request->method()
         ]);
+=======
+>>>>>>> 08812c9 (validation checks and improvements)
         
         $_kraDeviceModel = $request->attributes->get('_kra_device_model');
+        //print ($_kraDeviceModel); correctly to debug
+        if (!$_kraDeviceModel instanceof KraDevice) {
+            logger()->error("Invalid KRA Device model provided", ['_kra_device_model' => $_kraDeviceModel, 'trace_id' => $request->attributes->get('traceId')]);
+            return response()->json(['message' => 'Invalid KRA Device model provided.'], 400);
+        }
+        // dd($_kraDeviceModel);
         $itemData = $request->validated();
+
+        // dd($itemData); // Debugging line to check the validated data
+
         try {
             $response = $this->kraItemService->registerItem($_kraDeviceModel, $itemData);
             return response()->json([

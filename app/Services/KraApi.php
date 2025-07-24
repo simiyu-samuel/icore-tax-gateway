@@ -9,7 +9,7 @@ use Throwable;        // Import this
 class KraApi
 {
     protected string $baseUrl;
-    protected int $strictTimeoutMs = 1000; // KRA mandated 1000ms timeout for direct OSCU/VSCU calls
+    protected int $strictTimeoutMs = 10000; // KRA mandated 1000ms timeout for direct OSCU/VSCU calls
     protected int $generalTimeoutMs = 60000; // 60 seconds for general KRA API calls
 
     public function __construct()
@@ -21,7 +21,7 @@ class KraApi
             : config('kra.api_sandbox_base_url');
         
         // Set timeout values from config
-        $this->strictTimeoutMs = config('kra_api.strict_timeout_ms', 1000);
+        $this->strictTimeoutMs = config('kra_api.strict_timeout_ms', 2000);
         $this->generalTimeoutMs = config('kra_api.default_timeout_ms', 60000);
     }
 
@@ -71,6 +71,160 @@ class KraApi
 
         $url = rtrim($this->baseUrl, '/') . '/' . ltrim($endpoint, '/');
         $timeoutMs = $isStrictTimeout ? $this->strictTimeoutMs : $this->generalTimeoutMs;
+
+        // --- JSON for OSCU device initialization ---
+        $isOscuInit = ($endpoint === '/selectInitOsdcInfo') && (request()->input('deviceType') === 'OSCU');
+        $isVscuInit = ($endpoint === '/selectInitOsdcInfo') && (request()->input('deviceType') === 'VSCU');
+        if ($isOscuInit) {
+            // Build JSON payload for OSCU as per KRA spec
+            $payloadArr = [
+                'tin' => request()->input('taxpayerPin'),
+                'bhfId' => request()->input('branchOfficeId'),
+                'dvcSrlNo' => request()->input('deviceSerialNumber'),
+            ];
+            $jsonString = json_encode($payloadArr);
+            $headers = [
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json',
+            ];
+            logger()->debug("KRA_DEBUG: Outgoing JSON payload", [
+                'url' => $url,
+                'headers' => $headers,
+                'json_payload' => $payloadArr,
+                'json_string' => $jsonString,
+                'timeout_ms' => $timeoutMs,
+                'is_strict_timeout' => $isStrictTimeout,
+                'trace_id' => request()->attributes->get('traceId')
+            ]);
+            $responseBody = null;
+            try {
+                $response = Http::withHeaders($headers)
+                    ->timeout($timeoutMs / 1000)
+                    ->send('POST', $url, ['body' => $jsonString]);
+                $responseBody = $response->body();
+                logger()->debug("KRA_DEBUG: Raw HTTP response", [
+                    'status' => $response->status(),
+                    'headers' => $response->headers(),
+                    'body' => $responseBody,
+                    'trace_id' => request()->attributes->get('traceId')
+                ]);
+                logger()->info("KRA_RESPONSE: Received response from {$url}", [
+                    'status' => $response->status(),
+                    'body' => $responseBody,
+                    'trace_id' => request()->attributes->get('traceId')
+                ]);
+                $response->throw();
+                return $response;
+            } catch (\Illuminate\Http\Client\RequestException $e) {
+                logger()->error("KRA_HTTP_ERROR: " . $e->getMessage(), [
+                    'exception' => $e,
+                    'trace_id' => request()->attributes->get('traceId'),
+                    'request_headers' => $headers,
+                    'request_json' => $jsonString,
+                    'kra_url' => $url
+                ]);
+                throw new KraApiException(
+                    "Failed to communicate with KRA API due to HTTP error: " . $e->getMessage(),
+                    $e->response ? $e->response->body() : null,
+                    null,
+                    $e->response ? $e->response->status() : 0,
+                    0,
+                    $e
+                );
+            } catch (KraApiException $e) {
+                throw $e;
+            } catch (\Throwable $e) {
+                logger()->error("KRA_GENERAL_ERROR: " . $e->getMessage(), [
+                    'exception' => $e,
+                    'trace_id' => request()->attributes->get('traceId'),
+                    'request_headers' => $headers,
+                    'request_json' => $jsonString,
+                    'kra_url' => $url
+                ]);
+                throw new KraApiException(
+                    "An unexpected error occurred during KRA API communication: " . $e->getMessage(),
+                    $responseBody,
+                    null,
+                    0,
+                    0,
+                    $e
+                );
+            }
+        } else if ($isVscuInit) {
+            // For VSCU, send XML as per VSCU spec
+            $kraPayloadElements = '';
+            foreach ($xmlPayload->children() as $child) {
+                $kraPayloadElements .= $child->asXML();
+            }
+            $xmlString = $kraPayloadElements;
+            $headers = [
+                'Content-Type' => 'application/xml',
+                'Accept' => 'application/xml',
+            ];
+            logger()->debug("KRA_DEBUG: Outgoing XML payload (VSCU)", [
+                'url' => $url,
+                'headers' => $headers,
+                'xml_payload' => $xmlString,
+                'timeout_ms' => $timeoutMs,
+                'is_strict_timeout' => $isStrictTimeout,
+                'trace_id' => request()->attributes->get('traceId')
+            ]);
+            $responseBody = null;
+            try {
+                $response = Http::withHeaders($headers)
+                    ->timeout($timeoutMs / 1000)
+                    ->send('POST', $url, ['body' => $xmlString]);
+                $responseBody = $response->body();
+                logger()->debug("KRA_DEBUG: Raw HTTP response (VSCU)", [
+                    'status' => $response->status(),
+                    'headers' => $response->headers(),
+                    'body' => $responseBody,
+                    'trace_id' => request()->attributes->get('traceId')
+                ]);
+                logger()->info("KRA_RESPONSE: Received response from {$url}", [
+                    'status' => $response->status(),
+                    'body' => $responseBody,
+                    'trace_id' => request()->attributes->get('traceId')
+                ]);
+                $response->throw();
+                return $response;
+            } catch (\Illuminate\Http\Client\RequestException $e) {
+                logger()->error("KRA_HTTP_ERROR: " . $e->getMessage(), [
+                    'exception' => $e,
+                    'trace_id' => request()->attributes->get('traceId'),
+                    'request_headers' => $headers,
+                    'request_xml' => $xmlString,
+                    'kra_url' => $url
+                ]);
+                throw new KraApiException(
+                    "Failed to communicate with KRA API due to HTTP error: " . $e->getMessage(),
+                    $e->response ? $e->response->body() : null,
+                    null,
+                    $e->response ? $e->response->status() : 0,
+                    0,
+                    $e
+                );
+            } catch (KraApiException $e) {
+                throw $e;
+            } catch (\Throwable $e) {
+                logger()->error("KRA_GENERAL_ERROR: " . $e->getMessage(), [
+                    'exception' => $e,
+                    'trace_id' => request()->attributes->get('traceId'),
+                    'request_headers' => $headers,
+                    'request_xml' => $xmlString,
+                    'kra_url' => $url
+                ]);
+                throw new KraApiException(
+                    "An unexpected error occurred during KRA API communication: " . $e->getMessage(),
+                    $responseBody,
+                    null,
+                    0,
+                    0,
+                    $e
+                );
+            }
+        }
+        // --- END JSON for OSCU device initialization ---
 
         $kraPayloadElements = '';
         foreach ($xmlPayload->children() as $child) {

@@ -8,6 +8,7 @@ return [
     'qr_code_base_url' => env('KRA_QR_CODE_BASE_URL', 'https://etims.kra.go.ke/receipt_validation'), // Hypothetical
     'simulation_mode' => env('KRA_SIMULATION_MODE', false),
     'simulation_responses' => env('KRA_SIMULATION_RESPONSES', true),
+    'invoice_verification_base_url' => env('KRA_INVOICE_VERIFICATION_BASE_URL', 'https://etims-sbx.kra.go.ke/common/link/etims/receipt/indexEtimsReceiptData'),
     
     // Mock Server Configuration
     'mock_server' => [

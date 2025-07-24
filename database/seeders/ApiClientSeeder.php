@@ -10,7 +10,7 @@ class ApiClientSeeder extends Seeder
     public function run(): void
     {
         $taxpayer1 = TaxpayerPin::where('pin', 'P123456789Z')->first();
-        $taxpayer2 = TaxpayerPin::where('pin', 'P987654321A')->first();
+        $taxpayer2 = TaxpayerPin::where('pin', 'P600001733A')->first();
 
         // Client for POS integration (can access taxpayer1)
         $posClientApiKey = 'POS_API_KEY_EXAMPLE_1234567890ABCDEF'; // Plain text API Key for Postman

@@ -19,7 +19,7 @@ class KraDeviceService
     /**
      * Initializes/activates a KRA device (OSCU or VSCU).
      * This maps to the /selectInitOsdcInfo endpoint in KRA spec.
-     * @param array $data Contains taxpayerPin, branchOfficeId, deviceType.
+     * @param array $data Contains taxpayerPin, branchOfficeId, deviceType, deviceSerialNumber.
      * @return KraDevice
      * @throws \App\Exceptions\KraApiException
      * @throws \Exception If KRA response is unparseable or unexpected.
@@ -32,12 +32,11 @@ class KraDeviceService
         // KRA spec: (url: /selectInitOsdcInfo) - needs PIN, branch office ID, equipment information
         $xmlPayload = KraApi::buildKraXml(
             $taxpayerPin->pin,
-            'selectInitOsdcInfo', // This is the CMD value for the initialization command
+            'selectInitOsdcInfo',
             [
                 'branchOfficeId' => $data['branchOfficeId'],
-                'deviceType' => $data['deviceType']
-                // Add other equipment info if needed as per KRA spec for this command
-                // Example: 'registrationDate' => now()->format('YmdHis'), // If KRA expects this in init
+                'deviceType' => $data['deviceType'],
+                'deviceSerialNumber' => $data['deviceSerialNumber'], // Pass serial number for OSCU
             ]
         );
 
@@ -56,9 +55,15 @@ class KraDeviceService
             // Send command with strict timeout for initialization
             $response = $this->kraApi->sendCommand($endpointPath, $xmlPayload, true); // `true` for strict timeout
 
-            // Parse KRA's XML response
-            $parsedXml = simplexml_load_string($response->body());
-            $kraScuId = (string) ($parsedXml->DATA->SCU_ID ?? null); // Adjust path based on actual KRA response
+            // Check Content-Type to determine how to parse
+            $contentType = $response->header('Content-Type');
+            if (str_contains($contentType, 'application/json')) {
+                $parsed = json_decode($response->body(), true);
+                $kraScuId = $parsed['DATA']['SCU_ID'] ?? null;
+            } else {
+                $parsedXml = simplexml_load_string($response->body());
+                $kraScuId = (string) ($parsedXml->DATA->SCU_ID ?? null); // Adjust path based on actual KRA response
+            }
 
             if (empty($kraScuId)) {
                 throw new \Exception("KRA initialization response missing SCU_ID: " . $response->body());
@@ -113,6 +118,7 @@ class KraDeviceService
             // Ensure baseUrl is restored even if an error occurs
             $this->kraApi->setBaseUrl($originalBaseUrl);
         }
+        throw new \Exception('initializeDevice: Unexpected error, no device returned.');
     }
 
     /**
@@ -190,6 +196,7 @@ class KraDeviceService
             // Ensure baseUrl is restored
             $this->kraApi->setBaseUrl($originalBaseUrl);
         }
+        throw new \Exception('getDeviceStatus: Unexpected error, no status returned.');
     }
 
     /**
@@ -214,9 +221,10 @@ class KraDeviceService
                 return $matches[1];
             }
             return null; // Or try other parsing methods
-        } catch (Throwable $e) {
+        } catch (\Throwable $e) {
             logger()->warning("Failed to extract KRA SCU ID from error response: " . $e->getMessage(), ['raw_response' => $rawResponse]);
             return null;
         }
+        return null;
     }
 } 

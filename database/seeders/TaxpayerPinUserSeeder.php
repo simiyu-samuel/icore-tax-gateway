@@ -12,7 +12,7 @@ class TaxpayerPinUserSeeder extends Seeder
         $taxpayerUser1 = User::where('email', 'taxpayer1@example.com')->first();
 
         $taxpayer1 = TaxpayerPin::where('pin', 'P123456789Z')->first();
-        $taxpayer2 = TaxpayerPin::where('pin', 'P987654321A')->first();
+        $taxpayer2 = TaxpayerPin::where('pin', 'P600001733A')->first();
 
         if ($adminUser) {
             // Admin can manage all taxpayers

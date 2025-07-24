@@ -17,10 +17,10 @@ class TaxpayerPinSeeder extends Seeder
         );
 
         TaxpayerPin::firstOrCreate(
-            ['pin' => 'P987654321A'],
+            ['pin' => 'P600001733A'],
             [
-                'name' => 'KRA Demo Corp',
-                'address' => '456 Sample Street, Mombasa',
+                'name' => 'ICORE INFORMATION SYSTEMS LTD',
+                'address' => '3310 Kenyatta Avenue, Nakuru',
                 'is_active' => true,
             ]
         );

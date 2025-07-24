@@ -48,6 +48,7 @@ class InitializeKraDeviceRequest extends FormRequest
             'taxpayerPin' => ['required', 'string', 'max:20', Rule::exists('taxpayer_pins', 'pin')],
             'branchOfficeId' => ['required', 'string', 'max:10'],
             'deviceType' => ['required', 'string', Rule::in(['OSCU', 'VSCU'])],
+            'deviceSerialNumber' => ['required', 'string', 'max:100'],
         ];
     }
 

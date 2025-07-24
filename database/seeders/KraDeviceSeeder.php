@@ -10,7 +10,7 @@ class KraDeviceSeeder extends Seeder
     public function run(): void
     {
         $taxpayer1 = TaxpayerPin::where('pin', 'P123456789Z')->first();
-        $taxpayer2 = TaxpayerPin::where('pin', 'P987654321A')->first();
+        $taxpayer2 = TaxpayerPin::where('pin', 'P600001733A')->first();
 
         if ($taxpayer1) {
             KraDevice::firstOrCreate(
@@ -40,13 +40,13 @@ class KraDeviceSeeder extends Seeder
 
         if ($taxpayer2) {
              KraDevice::firstOrCreate(
-                ['kra_scu_id' => 'KRA-TEST-OSCU-002'],
+                ['kra_scu_id' => 'KRACU0300003594'],
                 [
                     'id' => (string) Str::uuid(),
                     'taxpayer_pin_id' => $taxpayer2->id,
-                    'device_type' => 'OSCU',
+                    'device_type' => 'VSCU',
                     'status' => 'ACTIVATED',
-                    'config' => ['branch_office_id' => '01']
+                    'config' => ['branch_office_id' => '00', 'kraserialNo' => 'ICORE123',]
                 ]
             );
         }

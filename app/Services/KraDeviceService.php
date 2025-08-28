@@ -26,25 +26,30 @@ class KraDeviceService
      */
     public function initializeDevice(array $data): KraDevice
     {
-        $taxpayerPin = TaxpayerPin::where('pin', $data['taxpayerPin'])->firstOrFail();
+        // Ensure the taxpayer PIN exists before proceeding
+        $taxpayerPin = TaxpayerPin::where('pin', $data['taxpayerPin'])->first();
+
+        if (!$taxpayerPin) {
+            throw new KraApiException("Taxpayer PIN with value '{$data['taxpayerPin']}' does not exist.", '404', null, 404);
+        }
 
         // Prepare XML payload for /selectInitOsdcInfo
-        // KRA spec: (url: /selectInitOsdcInfo) - needs PIN, branch office ID, equipment information
-        $xmlPayload = KraApi::buildKraXml(
-            $taxpayerPin->pin,
-            'selectInitOsdcInfo', // This is the CMD value for the initialization command
-            [
-                'branchOfficeId' => $data['branchOfficeId'],
-                'deviceType' => $data['deviceType']
-                // Add other equipment info if needed as per KRA spec for this command
-                // Example: 'registrationDate' => now()->format('YmdHis'), // If KRA expects this in init
-            ]
-        );
+        // KRA spec: (url: /selectInitInfo) - needs PIN, branch office ID, equipment information
+        // NOTE: The VSCU JAR expects JSON, not XML, as per the specification document.
+        // The KraApi::buildKraXml method is for XML, so this will need to be refactored.
+        // Prepare JSON payload for /selectInitInfo
+        $jsonPayload = [
+            "tin" => $taxpayerPin->pin,
+            "bhfId" => $data['branchOfficeId'],
+            "dvcTy" => $data['deviceType'],
+            "dvcSrlNo" => $data['dvcSrlNo']
+        ];
 
         // Determine the actual endpoint for the KRA API call.
         // For OSCU, it's typically the KRA API base URL + specific path.
         // For VSCU, it's the local JAR URL + specific path.
-        $endpointPath = '/selectInitOsdcInfo'; // This is the URL path KRA document suggests
+        // Based on JAR's self-discovery, the initialization endpoint appears to be '/initiolises'.
+        $endpointPath = '/initiolises';
 
         // Temporarily set the base URL for the KraApi instance if it's a VSCU to hit the local JAR
         $originalBaseUrl = $this->kraApi->getBaseUrl();
@@ -53,15 +58,16 @@ class KraDeviceService
         }
 
         try {
-            // Send command with strict timeout for initialization
-            $response = $this->kraApi->sendCommand($endpointPath, $xmlPayload, true); // `true` for strict timeout
+            // Send JSON command with strict timeout for initialization
+            $response = $this->kraApi->sendJsonCommand($endpointPath, $jsonPayload, true); // `true` for strict timeout
 
-            // Parse KRA's XML response
-            $parsedXml = simplexml_load_string($response->body());
-            $kraScuId = (string) ($parsedXml->DATA->SCU_ID ?? null); // Adjust path based on actual KRA response
+            // Parse KRA's JSON response
+            $parsedJson = json_decode($response->body(), true);
+            $kraScuId = $parsedJson['sdcId'] ?? null; // Adjust path based on actual KRA JSON response
 
             if (empty($kraScuId)) {
-                throw new \Exception("KRA initialization response missing SCU_ID: " . $response->body());
+                logger()->error("KRA initialization response missing sdcId or sdcId is null.", ['response_body' => $response->body(), 'trace_id' => request()->attributes->get('traceId')]);
+                throw new \Exception("KRA initialization response missing sdcId: " . $response->body());
             }
 
             // Check if device already exists in our local database
@@ -108,7 +114,9 @@ class KraDeviceService
                 }
             }
             // If not an 'already activated' scenario, or if we couldn't find the existing device, re-throw
-            throw $e;
+            throw $e; // Re-throw the KraApiException
+        } catch (\Exception $e) {
+            throw $e; // Re-throw any other exceptions
         } finally {
             // Ensure baseUrl is restored even if an error occurs
             $this->kraApi->setBaseUrl($originalBaseUrl);
@@ -186,6 +194,8 @@ class KraDeviceService
             $kraDevice->last_status_check_at = now();
             $kraDevice->save();
             throw $e;
+        } catch (\Exception $e) {
+            throw $e; // Re-throw any other exceptions
         } finally {
             // Ensure baseUrl is restored
             $this->kraApi->setBaseUrl($originalBaseUrl);
@@ -213,10 +223,10 @@ class KraDeviceService
             if (isset($matches[1])) {
                 return $matches[1];
             }
-            return null; // Or try other parsing methods
-        } catch (Throwable $e) {
+            return null; // Ensure a value is always returned
+        } catch (\Throwable $e) {
             logger()->warning("Failed to extract KRA SCU ID from error response: " . $e->getMessage(), ['raw_response' => $rawResponse]);
             return null;
         }
     }
-} 
+}

@@ -1,5 +1,7 @@
 <?php
+
 namespace App\Http\Requests;
+
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use App\Models\ApiClient;
@@ -33,8 +35,9 @@ class RegisterKraItemRequest extends FormRequest
 
         // Find the KraDevice and ensure it's linked to the provided taxpayerPin
         $kraDevice = KraDevice::where('id', $gatewayDeviceId)
-                              ->whereHas('taxpayerPin', function($query) use ($taxpayerPin) {
-                                  $query->where('pin', $taxpayerPin);
+                              ->whereHas('taxpayerPin', function($query) use ($apiClient, $taxpayerPin) {
+                                  $query->where('pin', $taxpayerPin)
+                                  ->whereIn('taxpayer_pin_id', $apiClient->taxpayerPins()->pluck('id'));
                               })
                               ->first();
 
@@ -46,14 +49,11 @@ class RegisterKraItemRequest extends FormRequest
         ]);
 
         // Check if the API client is allowed to operate on this specific taxpayer PIN
-        $allowedPins = explode(',', $apiClient->allowed_taxpayer_pins);
-        $isPinAllowedForClient = in_array($taxpayerPin, $allowedPins);
+        $isPinAllowedForClient = $apiClient->taxpayerPins()->where('pin', $taxpayerPin)->exists();
 
         Log::info("Authorize check: API Client PIN permission (Trace ID: {$traceId})", [
             'is_pin_allowed_for_client' => $isPinAllowedForClient,
-            'api_client_allowed_pins' => $allowedPins,
         ]);
-
 
         if (!$kraDevice || !$isPinAllowedForClient) { // This is the crucial line for failure
             Log::warning("Authorize check failed: KRA Device not found/linked OR Taxpayer PIN not allowed for client (Trace ID: {$traceId})", [

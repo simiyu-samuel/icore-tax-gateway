@@ -22,6 +22,11 @@ use App\Http\Controllers\MockServerController; // Assuming this exists for your 
 // ALL routes inside this group will be prefixed with `/api/v1/`
 Route::prefix('v1')->group(function () {
 
+    // Temporary ping route for debugging
+    Route::get('/ping', function () {
+        return response()->json(['message' => 'pong']);
+    });
+
     // --- Core Test Routes (move from top-level to be under /api/v1/) ---
     // Test route to verify API key authentication
     Route::get('/test-auth', function (Request $request) {

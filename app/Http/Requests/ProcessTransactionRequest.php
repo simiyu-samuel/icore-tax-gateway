@@ -52,6 +52,7 @@ class ProcessTransactionRequest extends FormRequest
             'internalReceiptNumber' => ['required', 'string', 'max:50'],
 
             'buyerPin' => ['nullable', 'string', 'max:20'],
+            'buyerPhone' => ['nullable', 'string', 'max:20'],
             'saleLocationAddress' => ['nullable', 'string', 'max:255'],
 
             'items' => ['required', 'array', 'min:1'],
@@ -158,4 +159,4 @@ class ProcessTransactionRequest extends FormRequest
             }
         });
     }
-} 
+}

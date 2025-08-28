@@ -29,8 +29,9 @@ class SendKraInventoryMovementRequest extends FormRequest
         $taxpayerPin = $this->input('taxpayerPin');
 
         $kraDevice = KraDevice::where('id', $gatewayDeviceId)
-                              ->whereHas('taxpayerPin', function($query) use ($taxpayerPin) {
-                                  $query->where('pin', $taxpayerPin);
+                              ->whereHas('taxpayerPin', function($query) use ($apiClient, $taxpayerPin) {
+                                  $query->where('pin', $taxpayerPin)
+                                  ->whereIn('taxpayer_pin_id', $apiClient->taxpayerPins()->pluck('id'));
                               })
                               ->first();
 

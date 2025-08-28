@@ -15,8 +15,9 @@ return new class extends Migration
         Schema::create('transactions', function (Blueprint $table) {
             $table->uuid('id')->primary(); // ICORE's internal gatewayTransactionId
             $table->foreignUuid('kra_device_id')->constrained('kra_devices');
-            $table->foreignId('taxpayer_pin_id')->constrained('taxpayer_pins'); // Denormalized for easier querying
-            $table->string('internal_receipt_number')->index(); // POS/ERP's transaction ID
+            $table->string('taxpayer_pin_id'); // Denormalized for easier querying
+            $table->foreign('taxpayer_pin_id')->references('id')->on('taxpayer_pins')->onDelete('cascade');
+            $table->string('internal_receipt_number')->index();
             $table->enum('receipt_type', ['NORMAL', 'COPY', 'TRAINING', 'PROFORMA']);
             $table->enum('transaction_type', ['SALE', 'CREDIT_NOTE', 'DEBIT_NOTE']);
             $table->string('kra_scu_id'); // KRA's device ID for this transaction

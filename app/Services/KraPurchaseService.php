@@ -44,9 +44,9 @@ class KraPurchaseService
             $purchaseHeaderPayload = [
                 'InvId' => $purchaseData['invoiceId'],
                 'bhfId' => $purchaseData['branchId'],
-                'bencId' => $purchaseData['supplierPin'],
+                'bcncId' => $purchaseData['supplierPin'],
                 'bcncNm' => $purchaseData['supplierName'],
-                'bencSdcId' => $purchaseData['supplierCuId'],
+                'spplrSdcId' => $purchaseData['supplierCuId'],
                 'regTyCd' => $purchaseData['registrationTypeCode'],
                 'refId' => $purchaseData['referenceId'],
                 'payTyCd' => $purchaseData['paymentTypeCode'],
@@ -224,4 +224,4 @@ class KraPurchaseService
             $this->kraApi->setBaseUrl($originalBaseUrl);
         }
     }
-} 
+}

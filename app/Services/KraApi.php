@@ -152,40 +152,61 @@ class KraApi
 
     /**
      * Get simulated response for development/testing.
+     * @param mixed $payload Can be SimpleXMLElement or JSON string.
      */
-    private function getSimulatedResponse(string $endpoint, SimpleXMLElement $xmlPayload): HttpResponse
+    private function getSimulatedResponse(string $endpoint, mixed $payload): HttpResponse
     {
+        $payloadString = '';
+        $command = 'UNKNOWN';
+        $contentType = 'application/xml'; // Default for XML mocks
+
+        if ($payload instanceof SimpleXMLElement) {
+            $payloadString = $payload->asXML();
+            $command = (string) ($payload->CMD ?? 'UNKNOWN');
+        } elseif (is_string($payload) && json_decode($payload) !== null) {
+            $payloadString = $payload;
+            $decodedPayload = json_decode($payload, true);
+            $command = $decodedPayload['CMD'] ?? $decodedPayload['command'] ?? $decodedPayload['tin'] ?? 'UNKNOWN'; // Adjust keys as needed
+            $contentType = 'application/json';
+        } else {
+            $payloadString = (string) $payload;
+        }
+
         logger()->info("KRA_SIMULATION: Simulating response for endpoint {$endpoint}", [
-            'payload' => $xmlPayload->asXML(),
+            'payload' => $payloadString,
             'trace_id' => request()->attributes->get('traceId')
         ]);
-
-        // Parse the XML payload to determine the command
-        $command = (string) ($xmlPayload->CMD ?? 'UNKNOWN');
         
         // Generate appropriate mock response based on command
-        $mockResponse = $this->generateMockResponse($command, $xmlPayload);
+        $mockResponse = $this->generateMockResponse($command, $payload);
         
         // Create a mock HTTP response
         return new \Illuminate\Http\Client\Response(
-            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/xml'], $mockResponse)
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => $contentType], $mockResponse)
         );
     }
 
     /**
      * Generate mock response based on KRA command.
+     * @param mixed $payload Can be SimpleXMLElement or JSON string.
      */
-    private function generateMockResponse(string $command, SimpleXMLElement $xmlPayload): string
+    private function generateMockResponse(string $command, mixed $payload): string
     {
         // Use KraMockServerService for report commands
         if (in_array($command, ['X_REPORT', 'Z_REPORT', 'PLU_REPORT'])) {
             $mockServer = new KraMockServerService();
-            $pin = (string) ($xmlPayload->PIN ?? '');
+            $pin = '';
+            if ($payload instanceof SimpleXMLElement) {
+                $pin = (string) ($payload->PIN ?? '');
+            } elseif (is_string($payload) && json_decode($payload) !== null) {
+                $decodedPayload = json_decode($payload, true);
+                $pin = $decodedPayload['PIN'] ?? $decodedPayload['tin'] ?? ''; // Adjust keys as needed
+            }
             
             // Extract data payload for PLU_REPORT
             $dataPayload = [];
-            if ($command === 'PLU_REPORT' && isset($xmlPayload->DATA)) {
-                foreach ($xmlPayload->DATA->children() as $child) {
+            if ($command === 'PLU_REPORT' && $payload instanceof SimpleXMLElement && isset($payload->DATA)) {
+                foreach ($payload->DATA->children() as $child) {
                     $dataPayload[(string) $child->getName()] = (string) $child;
                 }
             }
@@ -194,8 +215,10 @@ class KraApi
         }
         
         switch ($command) {
-            case 'selectInitOsdcInfo':
+            case 'selectInitOsdcInfo': // Old XML initialization command
                 return $this->getMockInitResponse();
+            case 'selectInitInfo': // New JSON initialization command
+                return $this->getMockInitResponseJson();
             case 'SEND_ITEM':
                 return $this->getMockSendItemResponse();
             case 'RECV_ITEM':
@@ -232,6 +255,21 @@ class KraApi
 </root>';
     }
 
+    private function getMockInitResponseJson(): string
+    {
+        return json_encode([
+            "resultCd" => "000",
+            "resultMsg" => "SUCCESS",
+            "data" => [
+                "branchOfficeId" => "00",
+                "deviceType" => "VSCU",
+                "deviceStatus" => "ACTIVE",
+                "lastSyncTime" => "20250704120000",
+                "SCU_ID" => "KRACU000000001"
+            ]
+        ]);
+    }
+
     private function getMockSendItemResponse(): string
     {
         return '<?xml version="1.0" encoding="UTF-8"?>
@@ -260,7 +298,7 @@ class KraApi
         <dfltDlUntpc>120.00</dfltDlUntpc>
         <useYn>Y</useYn>
     </DATA>
-</root>';
+</root';
     }
 
     private function getMockSendPurchaseResponse(): string
@@ -405,5 +443,99 @@ class KraApi
     public function setBaseUrl(string $url): void
     {
         $this->baseUrl = $url;
+    }
+
+    /**
+     * Sends a JSON command to a KRA endpoint.
+     *
+     * @param string $endpoint The KRA specific endpoint path (e.g., '/selectInitInfo').
+     * @param array $jsonPayload The JSON payload (associative array) to send.
+     * @param bool $isStrictTimeout If true, uses the KRA-mandated 1000ms timeout.
+     * @return \Illuminate\Http\Client\Response
+     * @throws \App\Exceptions\KraApiException if KRA returns an error or communication fails.
+     */
+    public function sendJsonCommand(string $endpoint, array $jsonPayload, bool $isStrictTimeout = false): HttpResponse
+    {
+        // Check if simulation mode is enabled
+        if (config('kra.simulation_mode', false)) {
+            // For simulation, we need to handle both XML and JSON payloads
+            return $this->getSimulatedResponse($endpoint, json_encode($jsonPayload));
+        }
+
+        $url = rtrim($this->baseUrl, '/') . '/' . ltrim($endpoint, '/');
+        $timeoutMs = $isStrictTimeout ? $this->strictTimeoutMs : $this->generalTimeoutMs;
+        $payloadString = json_encode($jsonPayload);
+
+        logger()->info("KRA_REQUEST: Sending JSON command to {$url}", [
+            'payload' => $payloadString,
+            'content_type' => 'application/json',
+            'timeout_ms' => $timeoutMs,
+            'is_strict_timeout' => $isStrictTimeout,
+            'trace_id' => request()->attributes->get('traceId')
+        ]);
+
+        $responseBody = null;
+
+        try {
+            $response = Http::withHeaders([
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json',
+            ])
+            ->timeout($timeoutMs / 1000)
+            ->send('POST', $url, ['body' => $payloadString]);
+
+            $responseBody = $response->body();
+
+            logger()->info("KRA_RESPONSE: Received JSON response from {$url}", [
+                'status' => $response->status(),
+                'body' => $responseBody,
+                'trace_id' => request()->attributes->get('traceId')
+            ]);
+
+            $response->throw(); // Throws RequestException for 4xx or 5xx responses
+
+            $parsedJson = json_decode($responseBody, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new \Exception("KRA response is not valid JSON: " . $responseBody);
+            }
+
+            // Check for KRA specific error codes in JSON response
+            // Assuming KRA JSON responses have 'resultCd' and 'resultMsg' for success/failure
+            if (isset($parsedJson['resultCd']) && $parsedJson['resultCd'] !== '000') {
+                $kraErrorCode = $parsedJson['resultCd'];
+                $message = $parsedJson['resultMsg'] ?? 'No specific message.';
+                throw new KraApiException(
+                    "KRA returned an error status: [{$kraErrorCode}] {$message}",
+                    $responseBody,
+                    $kraErrorCode,
+                    $response->status()
+                );
+            }
+
+            return $response;
+
+        } catch (\Illuminate\Http\Client\RequestException $e) {
+            logger()->error("KRA_HTTP_ERROR: " . $e->getMessage(), ['exception' => $e, 'trace_id' => request()->attributes->get('traceId')]);
+            throw new KraApiException(
+                "Failed to communicate with KRA API due to HTTP error: " . $e->getMessage(),
+                $e->response ? $e->response->body() : null,
+                null,
+                $e->response ? $e->response->status() : 0,
+                0,
+                $e
+            );
+        } catch (KraApiException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            logger()->error("KRA_GENERAL_ERROR: " . $e->getMessage(), ['exception' => $e, 'trace_id' => request()->attributes->get('traceId')]);
+            throw new KraApiException(
+                "An unexpected error occurred during KRA API communication: " . $e->getMessage(),
+                $responseBody,
+                null,
+                0,
+                0,
+                $e
+            );
+        }
     }
 }

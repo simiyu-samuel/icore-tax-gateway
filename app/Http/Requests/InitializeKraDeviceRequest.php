@@ -28,7 +28,7 @@ class InitializeKraDeviceRequest extends FormRequest
 
         $taxpayerPinModel = TaxpayerPin::where('pin', $requestedPin)->first();
 
-        if (!$taxpayerPinModel || !in_array($requestedPin, explode(',', $apiClient->allowed_taxpayer_pins))) {
+        if (!$taxpayerPinModel || !$apiClient->taxpayerPins()->where('pin', $requestedPin)->exists()) {
             return false;
         }
 
@@ -48,6 +48,7 @@ class InitializeKraDeviceRequest extends FormRequest
             'taxpayerPin' => ['required', 'string', 'max:20', Rule::exists('taxpayer_pins', 'pin')],
             'branchOfficeId' => ['required', 'string', 'max:10'],
             'deviceType' => ['required', 'string', Rule::in(['OSCU', 'VSCU'])],
+            'dvcSrlNo' => ['required', 'string', 'max:100'],
         ];
     }
 

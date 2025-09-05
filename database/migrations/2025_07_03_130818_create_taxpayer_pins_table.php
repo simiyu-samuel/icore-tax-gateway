@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('taxpayer_pins', function (Blueprint $table) {
-            $table->id();
+            $table->uuid('id')->primary();
             $table->string('pin', 20)->unique(); // KRA PIN format e.g., P000000000Z
             $table->string('name')->nullable(); // KRA company name
             $table->string('address')->nullable();

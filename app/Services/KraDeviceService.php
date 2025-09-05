@@ -26,7 +26,13 @@ class KraDeviceService
      */
     public function initializeDevice(array $data): KraDevice
     {
-        $taxpayerPin = TaxpayerPin::where('pin', $data['taxpayerPin'])->firstOrFail();
+        // Ensure the taxpayer PIN exists before proceeding
+        $taxpayerPin = TaxpayerPin::where('pin', $data['taxpayerPin'])->first();
+
+        if (!$taxpayerPin) {
+            throw new KraApiException("Taxpayer PIN with value '{$data['taxpayerPin']}' does not exist.", '404', null, 404);
+            return new KraDevice(); // Added to satisfy static analysis, though unreachable
+        }
 
         // Prepare XML payload for /selectInitOsdcInfo
         // KRA spec: (url: /selectInitOsdcInfo) - needs PIN, branch office ID, equipment information
@@ -214,9 +220,9 @@ class KraDeviceService
                 return $matches[1];
             }
             return null; // Or try other parsing methods
-        } catch (Throwable $e) {
+        } catch (\Throwable $e) {
             logger()->warning("Failed to extract KRA SCU ID from error response: " . $e->getMessage(), ['raw_response' => $rawResponse]);
             return null;
         }
     }
-} 
+}

@@ -58,8 +58,7 @@ class ApiClient extends Model
 
     public function taxpayerPins()
     {
-        // If allowed_taxpayer_pins is a comma-separated string
-        return TaxpayerPin::whereIn('pin', explode(',', $this->allowed_taxpayer_pins));
+        return $this->belongsToMany(TaxpayerPin::class);
     }
 
     /**
@@ -75,13 +74,7 @@ class ApiClient extends Model
             return true;
         }
 
-        // If no allowed pins are set, deny access
-        if (empty($this->allowed_taxpayer_pins)) {
-            return false;
-        }
-
-        // Convert comma-separated string to array and check if PIN is in the list
-        $allowedPins = array_map('trim', explode(',', $this->allowed_taxpayer_pins));
-        return in_array($taxpayerPin, $allowedPins);
+        // Check if the PIN is associated with this client
+        return $this->taxpayerPins()->where('pin', $taxpayerPin)->exists();
     }
 }

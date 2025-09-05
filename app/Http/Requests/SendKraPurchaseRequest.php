@@ -14,6 +14,7 @@ class SendKraPurchaseRequest extends FormRequest
      */
     public function authorize(): bool
     {
+        /** @var ApiClient $apiClient */
         $apiClient = $this->attributes->get('api_client');
 
         if (!$apiClient || !$apiClient->is_active) {
@@ -24,17 +25,20 @@ class SendKraPurchaseRequest extends FormRequest
         $taxpayerPin = $this->input('taxpayerPin');
 
         $kraDevice = KraDevice::where('id', $gatewayDeviceId)
-                              ->whereHas('taxpayerPin', function($query) use ($taxpayerPin) {
-                                  $query->where('pin', $taxpayerPin);
-                              })
-                              ->first();
+            ->whereHas('taxpayerPin', function ($query) use ($apiClient, $taxpayerPin) {
+                $query->where('pin', $taxpayerPin)
+                    ->whereIn('taxpayer_pin_id', $apiClient->taxpayerPins()->pluck('id'));
+            })
+            ->first();
 
-        $allowedPins = explode(',', $apiClient->allowed_taxpayer_pins);
-        if (!in_array($taxpayerPin, $allowedPins)) {
+        if (!$kraDevice) {
             return false;
         }
 
-        if (!$kraDevice) {
+        // Check if the API client is allowed to operate on this specific taxpayer PIN
+        $isPinAllowedForClient = $apiClient->taxpayerPins()->where('pin', $taxpayerPin)->exists();
+
+        if (!$kraDevice || !$isPinAllowedForClient) {
             return false;
         }
 
@@ -64,7 +68,7 @@ class SendKraPurchaseRequest extends FormRequest
             'referenceId' => ['required', 'string', 'max:50'], // refId (Supplier invoice number)
             'paymentTypeCode' => ['required', 'string', 'max:10'], // payTyCd
             'invoiceStatusCode' => ['required', 'string', 'max:10'], // invStatusCd
-            'transactionDate' => ['required', 'date_format:Ymd'], // ocde - YYYYMMDD
+            'transactionDate' => ['required', 'string', 'date_format:Ymd'], // ocde - YYYYMMDD
             'validDate' => ['nullable', 'date_format:Ymd'], // validDt
             'cancelRequestDate' => ['nullable', 'date_format:YmdHis'], // cancelReqDt - YYYYMMDDHHMISS
             'cancelDate' => ['nullable', 'date_format:YmdHis'], // cancelDt
@@ -85,7 +89,7 @@ class SendKraPurchaseRequest extends FormRequest
             'totalAmount' => ['required', 'numeric', 'min:0'], // totAmt
             'remark' => ['nullable', 'string', 'max:255'], // remark
             'registerUserId' => ['required', 'string', 'max:50'], // regusrId
-            'registerDate' => ['required', 'date_format:YmdHis'], // regDt - YYYYMMDDHHMISS
+            'registerDate' => ['required', 'string', 'date_format:YmdHis'], // regDt - YYYYMMDDHHMISS
 
             // Purchase Item Fields (SEND_PURCHASEITEM) - array of items
             'items' => ['required', 'array', 'min:1'],

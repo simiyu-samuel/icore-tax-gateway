@@ -12,7 +12,9 @@ class KraDeviceSeeder extends Seeder
         $taxpayer1 = TaxpayerPin::where('pin', 'P123456789Z')->first();
         $taxpayer2 = TaxpayerPin::where('pin', 'P987654321A')->first();
 
-        if ($taxpayer1) {
+        if (!$taxpayer1) {
+            $this->command->warn('Taxpayer PIN P123456789Z not found. Skipping related KraDevice seeding.');
+        } else {
             KraDevice::firstOrCreate(
                 ['kra_scu_id' => 'KRA-TEST-OSCU-001'],
                 [
@@ -38,7 +40,9 @@ class KraDeviceSeeder extends Seeder
             );
         }
 
-        if ($taxpayer2) {
+        if (!$taxpayer2) {
+            $this->command->warn('Taxpayer PIN P987654321A not found. Skipping related KraDevice seeding.');
+        } else {
              KraDevice::firstOrCreate(
                 ['kra_scu_id' => 'KRA-TEST-OSCU-002'],
                 [

@@ -8,10 +8,11 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             TaxpayerPinSeeder::class,
+            ApiClientSeeder::class,
             KraDeviceSeeder::class,
-            ApiClientSeeder::class, // Run after TaxpayerPinSeeder
             UserSeeder::class,
-            TaxpayerPinUserSeeder::class, // Run after UserSeeder and TaxpayerPinSeeder
+            TaxpayerPinUserSeeder::class,
+            ApiClientTaxpayerPinSeeder::class,
         ]);
     }
 }
